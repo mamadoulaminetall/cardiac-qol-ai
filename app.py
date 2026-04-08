@@ -95,6 +95,70 @@ if "page" not in st.session_state:
     st.session_state.page = "accueil"
 
 # ─────────────────────────────────────────────
+# DONNÉES DÉMO
+# ─────────────────────────────────────────────
+DEMO_PATIENTS = {
+    "Liste d'attente": {
+        "patient": {
+            "prenom": "Jean", "nom": "Dupont", "age": 58, "sexe": "Homme",
+            "statut": "Liste d'attente", "moment": "T0 — Inscription sur liste",
+            "date": "2026-01-15", "nyha": "III", "nyha_idx": 2,
+            "6mwt": 265, "bnp": 890, "lvef": 22
+        },
+        "evaluations": [
+            {"date": "2026-01-15", "moment": "T0 — Inscription sur liste",
+             "statut": "Liste d'attente",
+             "kccq": 36, "sf36_pcs": 28, "sf36_mcs": 39, "minnesota": 58, "eq5d": 0.49,
+             "nyha": "III", "6mwt": 265, "bnp": 890, "lvef": 22},
+        ]
+    },
+    "LVAD": {
+        "patient": {
+            "prenom": "Michel", "nom": "Bernard", "age": 62, "sexe": "Homme",
+            "statut": "LVAD", "moment": "T2 — 3 mois post-LVAD",
+            "date": "2026-03-10", "nyha": "II", "nyha_idx": 1,
+            "6mwt": 340, "bnp": 420, "lvef": 28
+        },
+        "evaluations": [
+            {"date": "2025-11-20", "moment": "T0 — Inscription sur liste",
+             "statut": "LVAD",
+             "kccq": 34, "sf36_pcs": 26, "sf36_mcs": 38, "minnesota": 62, "eq5d": 0.45,
+             "nyha": "III", "6mwt": 240, "bnp": 950, "lvef": 20},
+            {"date": "2025-12-15", "moment": "T1 — Avant implantation LVAD",
+             "statut": "LVAD",
+             "kccq": 32, "sf36_pcs": 25, "sf36_mcs": 36, "minnesota": 65, "eq5d": 0.43,
+             "nyha": "IV", "6mwt": 210, "bnp": 1100, "lvef": 18},
+            {"date": "2026-03-10", "moment": "T2 — 3 mois post-LVAD",
+             "statut": "LVAD",
+             "kccq": 54, "sf36_pcs": 38, "sf36_mcs": 44, "minnesota": 38, "eq5d": 0.69,
+             "nyha": "II", "6mwt": 340, "bnp": 420, "lvef": 28},
+        ]
+    },
+    "Post-greffe": {
+        "patient": {
+            "prenom": "Marie", "nom": "Leroy", "age": 54, "sexe": "Femme",
+            "statut": "Post-greffe", "moment": "T5 — 1 an post-greffe",
+            "date": "2026-04-01", "nyha": "I", "nyha_idx": 0,
+            "6mwt": 490, "bnp": 165, "lvef": 62
+        },
+        "evaluations": [
+            {"date": "2024-12-10", "moment": "T0 — Inscription sur liste",
+             "statut": "Post-greffe",
+             "kccq": 38, "sf36_pcs": 29, "sf36_mcs": 40, "minnesota": 56, "eq5d": 0.51,
+             "nyha": "III", "6mwt": 270, "bnp": 810, "lvef": 23},
+            {"date": "2025-04-05", "moment": "T4 — 3 mois post-greffe",
+             "statut": "Post-greffe",
+             "kccq": 58, "sf36_pcs": 40, "sf36_mcs": 47, "minnesota": 28, "eq5d": 0.74,
+             "nyha": "II", "6mwt": 410, "bnp": 220, "lvef": 56},
+            {"date": "2026-04-01", "moment": "T5 — 1 an post-greffe",
+             "statut": "Post-greffe",
+             "kccq": 68, "sf36_pcs": 45, "sf36_mcs": 52, "minnesota": 20, "eq5d": 0.82,
+             "nyha": "I", "6mwt": 490, "bnp": 165, "lvef": 62},
+        ]
+    }
+}
+
+# ─────────────────────────────────────────────
 # SIDEBAR NAVIGATION
 # ─────────────────────────────────────────────
 with st.sidebar:
@@ -174,6 +238,60 @@ if st.session_state.page == "accueil":
 Si 2 choix → T0 + T5 (1 an post-greffe)</p>
 </div>
 """, unsafe_allow_html=True)
+
+    st.markdown("---")
+    st.markdown("### 🎬 Mode démo — Charger un patient exemple")
+    st.markdown("*Explorez la plateforme avec des données réalistes issues de la méta-analyse*")
+
+    dcol1, dcol2, dcol3 = st.columns(3)
+
+    with dcol1:
+        st.markdown("""
+<div class="card" style="border-color:#ef4444;">
+<h4>🔴 Liste d'attente</h4>
+<p><b>Jean Dupont</b>, 58 ans<br>
+NYHA III · BNP 890 · 6MWT 265 m<br>
+1 évaluation (T0 baseline)</p>
+</div>
+""", unsafe_allow_html=True)
+        if st.button("Charger démo Liste d'attente", use_container_width=True, key="demo_liste"):
+            demo = DEMO_PATIENTS["Liste d'attente"]
+            st.session_state.patient = demo["patient"]
+            st.session_state.evaluations = demo["evaluations"]
+            st.session_state.page = "dashboard"
+            st.rerun()
+
+    with dcol2:
+        st.markdown("""
+<div class="card" style="border-color:#f59e0b;">
+<h4>🟡 LVAD</h4>
+<p><b>Michel Bernard</b>, 62 ans<br>
+NYHA II · BNP 420 · 6MWT 340 m<br>
+3 évaluations (T0 → T1 → T2)</p>
+</div>
+""", unsafe_allow_html=True)
+        if st.button("Charger démo LVAD", use_container_width=True, key="demo_lvad"):
+            demo = DEMO_PATIENTS["LVAD"]
+            st.session_state.patient = demo["patient"]
+            st.session_state.evaluations = demo["evaluations"]
+            st.session_state.page = "dashboard"
+            st.rerun()
+
+    with dcol3:
+        st.markdown("""
+<div class="card" style="border-color:#10b981;">
+<h4>🟢 Post-greffe</h4>
+<p><b>Marie Leroy</b>, 54 ans<br>
+NYHA I · BNP 165 · 6MWT 490 m<br>
+3 évaluations (T0 → T4 → T5)</p>
+</div>
+""", unsafe_allow_html=True)
+        if st.button("Charger démo Post-greffe", use_container_width=True, key="demo_greffe"):
+            demo = DEMO_PATIENTS["Post-greffe"]
+            st.session_state.patient = demo["patient"]
+            st.session_state.evaluations = demo["evaluations"]
+            st.session_state.page = "dashboard"
+            st.rerun()
 
     st.markdown("---")
     if st.button("👤 Commencer — Nouveau patient", type="primary", use_container_width=True):
