@@ -53,6 +53,50 @@ div[data-testid="metric-container"] {
 .badge-greffe{ background:#10b981; color:white; padding:3px 10px; border-radius:20px; font-size:13px; font-weight:bold; }
 .patient-row { background:#1e293b; border-radius:10px; padding:12px 16px;
     border:1px solid #334155; margin-bottom:8px; }
+
+/* ── Dashboard hdb-* (matching HTML landing page) ── */
+.hdb-kpis { display:grid; grid-template-columns:repeat(4,1fr);
+    border:1px solid rgba(255,255,255,0.06); background:rgba(0,0,0,0.25);
+    border-radius:14px; overflow:hidden; margin-bottom:18px; }
+.hdb-kpi { padding:16px 8px; text-align:center; border-right:1px solid rgba(255,255,255,0.05); }
+.hdb-kpi:last-child { border-right:none; }
+.hdb-kv { font-size:2rem; font-weight:900; line-height:1; margin-bottom:4px; }
+.hdb-kl { font-size:0.62rem; text-transform:uppercase; letter-spacing:0.06em; color:#475569; }
+.hdb-kpi-hi .hdb-kv { color:#f87171; }
+.hdb-kpi-mo .hdb-kv { color:#fb923c; }
+.hdb-kpi-lo .hdb-kv { color:#4ade80; }
+.hdb-kpi-t  .hdb-kv { color:#fb7185; }
+.hdb-sec-title { font-size:0.67rem; font-weight:800; text-transform:uppercase;
+    letter-spacing:0.09em; color:#fb7185; margin-bottom:10px;
+    display:flex; align-items:center; gap:7px; }
+.hdb-qrow { display:grid; grid-template-columns:120px 1fr 60px auto;
+    align-items:center; gap:8px; padding:8px 14px;
+    border-radius:8px; margin-bottom:4px; }
+.hdb-qrow-hi { background:rgba(239,68,68,0.06); border:1px solid rgba(239,68,68,0.16); }
+.hdb-qrow-mo { background:rgba(249,115,22,0.05); border:1px solid rgba(249,115,22,0.14); }
+.hdb-qrow-lo { background:rgba(16,185,129,0.04); border:1px solid rgba(16,185,129,0.12); }
+.hdb-qname  { font-weight:700; color:#e2e8f0; font-size:0.76rem; }
+.hdb-qval   { color:#64748b; font-size:0.64rem; }
+.hdb-qscore { font-weight:700; font-size:0.70rem; color:#fb7185; text-align:right; }
+.hdb-sbar   { height:6px; border-radius:3px; background:rgba(255,255,255,.07); overflow:hidden; }
+.hdb-sfill  { height:100%; border-radius:3px; }
+.hdb-badge  { font-size:0.64rem; font-weight:700; padding:3px 8px; border-radius:4px; white-space:nowrap; }
+.hdb-badge-r { background:rgba(239,68,68,0.12); color:#f87171; border:1px solid rgba(239,68,68,0.22); }
+.hdb-badge-o { background:rgba(249,115,22,0.12); color:#fb923c; border:1px solid rgba(249,115,22,0.22); }
+.hdb-badge-g { background:rgba(16,185,129,0.12); color:#4ade80; border:1px solid rgba(16,185,129,0.22); }
+.hdb-score { display:flex; align-items:center; gap:14px; margin-top:14px; padding:12px 16px;
+    border-radius:10px; }
+.hdb-score-icon  { font-size:1.6rem; flex-shrink:0; }
+.hdb-score-lbl   { font-size:0.62rem; color:#6b7280; margin-bottom:2px; }
+.hdb-score-val   { font-size:1.2rem; font-weight:900; line-height:1; }
+.hdb-score-val small { font-size:0.62rem; font-weight:500; color:#475569; }
+.hdb-score-stage { font-size:0.63rem; margin-top:3px; font-weight:700; }
+.hdb-score-badge { margin-left:auto; font-size:0.63rem; font-weight:800; padding:5px 13px;
+    border-radius:20px; letter-spacing:0.08em; flex-shrink:0; }
+.hdb-alert    { margin-top:10px; padding:9px 14px; background:rgba(239,68,68,0.07);
+    border:1px solid rgba(239,68,68,0.22); border-radius:8px; font-size:0.72rem; color:#f87171; }
+.hdb-alert-ok { margin-top:10px; padding:9px 14px; background:rgba(16,185,129,0.07);
+    border:1px solid rgba(16,185,129,0.2); border-radius:8px; font-size:0.72rem; color:#4ade80; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -785,13 +829,30 @@ elif st.session_state.page == "questionnaires":
     st.markdown("---")
 
     outils = OUTILS_RECOMMANDES[statut]
+
+    def reco(key):
+        return any(key.lower() in o.lower() for o in outils)
+
+    def reco_badge(is_rec):
+        if is_rec:
+            return '<span style="background:rgba(16,185,129,0.12);border:1px solid rgba(16,185,129,0.35);color:#4ade80;padding:3px 11px;border-radius:20px;font-size:12px;font-weight:700;">✓ Recommandé</span>'
+        return '<span style="background:rgba(100,116,139,0.12);border:1px solid rgba(100,116,139,0.3);color:#64748b;padding:3px 11px;border-radius:20px;font-size:12px;font-weight:600;">Non prioritaire</span>'
+
+    kccq_rec = reco("KCCQ")
+    sf36_rec = reco("SF-36")
+    minn_rec = reco("Minnesota")
+    eq5d_rec = reco("EQ-5D")
+
     st.markdown(f"**Outils recommandés pour ce statut :** {' · '.join(outils)}")
     st.markdown("")
 
     scores = {}
 
     # ── KCCQ ──
-    with st.expander("📊 KCCQ — Kansas City Cardiomyopathy Questionnaire (/100)", expanded=True):
+    with st.expander(f"📊 KCCQ — Kansas City Cardiomyopathy Questionnaire (/100)", expanded=kccq_rec):
+        col_badge, _ = st.columns([1, 4])
+        with col_badge:
+            st.markdown(reco_badge(kccq_rec), unsafe_allow_html=True)
         st.caption("23 questions · 5 min · Score élevé = meilleure QdV")
         col1, col2 = st.columns(2)
         with col1:
@@ -807,7 +868,10 @@ elif st.session_state.page == "questionnaires":
         st.markdown(f"**Score KCCQ : {scores['kccq']}/100** — Percentile {pct}e pour {statut}")
 
     # ── SF-36 ──
-    with st.expander("🏃 SF-36 — Short Form-36 (/100)", expanded=False):
+    with st.expander(f"🏃 SF-36 — Short Form-36 (/100)", expanded=sf36_rec):
+        col_badge, _ = st.columns([1, 4])
+        with col_badge:
+            st.markdown(reco_badge(sf36_rec), unsafe_allow_html=True)
         st.caption("36 questions · 10 min · Score élevé = meilleure QdV")
         col1, col2 = st.columns(2)
         with col1:
@@ -823,7 +887,10 @@ elif st.session_state.page == "questionnaires":
         st.markdown(f"**SF-36 PCS : {pcs}/100** (percentile {pct_pcs}e) &nbsp;|&nbsp; **MCS : {mcs}/100** (percentile {pct_mcs}e)")
 
     # ── MINNESOTA ──
-    with st.expander("❤️ Minnesota LHFQ — Living with Heart Failure Questionnaire (/105)", expanded=False):
+    with st.expander(f"❤️ Minnesota LHFQ — Living with Heart Failure Questionnaire (/105)", expanded=minn_rec):
+        col_badge, _ = st.columns([1, 4])
+        with col_badge:
+            st.markdown(reco_badge(minn_rec), unsafe_allow_html=True)
         st.caption("21 questions · 5 min · Score bas = meilleure QdV (0 = parfait)")
         col1, col2 = st.columns(2)
         with col1:
@@ -837,7 +904,10 @@ elif st.session_state.page == "questionnaires":
         st.markdown(f"**Score Minnesota : {scores['minnesota']}/105** — Percentile {pct}e pour {statut} *(0=meilleur)*")
 
     # ── EQ-5D ──
-    with st.expander("🌡️ EQ-5D — EuroQol 5 Dimensions (/1)", expanded=False):
+    with st.expander(f"🌡️ EQ-5D — EuroQol 5 Dimensions (/1)", expanded=eq5d_rec):
+        col_badge, _ = st.columns([1, 4])
+        with col_badge:
+            st.markdown(reco_badge(eq5d_rec), unsafe_allow_html=True)
         st.caption("5 questions · 2 min · Score élevé = meilleure QdV")
         col1, col2 = st.columns(2)
         with col1:
@@ -883,172 +953,258 @@ elif st.session_state.page == "dashboard":
             st.rerun()
         st.stop()
 
-    p = st.session_state.patient
+    p     = st.session_state.patient
     evals = st.session_state.evaluations
-    last = evals[-1]
+    last  = evals[-1]
     statut = last["statut"]
-    ref = REF[statut]
+    ref    = REF[statut]
+    pid    = st.session_state.patient_id
 
-    st.markdown(f"# 📊 Tableau de bord — {p.get('prenom','')} {p.get('nom','')}")
+    prenom = p.get("prenom", "")
+    nom    = p.get("nom", "")
+    age    = p.get("age", "")
+    sexe   = p.get("sexe", "")
+
+    # ── HEADER ──
     badge_html = f'<span class="{ref["badge"]}">{statut}</span>'
-    pid = st.session_state.patient_id
-    pid_info = f"&nbsp;|&nbsp; <code style='background:#1e293b;padding:2px 6px;border-radius:4px;font-size:11px'>{pid}</code>" if pid else ""
-    st.markdown(f"Statut : {badge_html} &nbsp;|&nbsp; {last['moment']}{pid_info}", unsafe_allow_html=True)
+    pid_code = (f"&nbsp;|&nbsp;<code style='background:#1e293b;padding:2px 6px;"
+                f"border-radius:4px;font-size:11px'>{pid}</code>") if pid else ""
+    st.markdown(f"# 📊 Tableau de bord — {prenom} {nom}")
+    st.markdown(f"Statut : {badge_html} &nbsp;|&nbsp; {last['moment']}{pid_code}",
+                unsafe_allow_html=True)
     st.markdown("---")
+
+    # ── CALCUL PERCENTILES ──
+    def calc_pct(score, mean, sd, higher_is_better=True):
+        p = int(stats.norm.cdf(score, mean, sd) * 100)
+        return p if higher_is_better else 100 - p
+
+    def badge_cls(p):
+        return "hdb-badge-g" if p >= 66 else "hdb-badge-o" if p >= 33 else "hdb-badge-r"
+
+    def row_cls(p):
+        return "hdb-qrow-lo" if p >= 66 else "hdb-qrow-mo" if p >= 33 else "hdb-qrow-hi"
+
+    def bar_col(p):
+        return "#10b981" if p >= 66 else "#fb923c" if p >= 33 else "#ef4444"
+
+    def kpi_cls(p):
+        return "hdb-kpi-lo" if p >= 66 else "hdb-kpi-mo" if p >= 33 else "hdb-kpi-hi"
+
+    kccq = last.get("kccq") or 0
+    pcs  = last.get("sf36_pcs") or 0
+    mcs  = last.get("sf36_mcs") or 0
+    minn = last.get("minnesota") or 0
+    eq   = last.get("eq5d") or 0
+
+    pct_kccq = calc_pct(kccq, *ref["kccq"])
+    pct_pcs  = calc_pct(pcs,  *ref["sf36_pcs"])
+    pct_mcs  = calc_pct(mcs,  *ref["sf36_mcs"])
+    pct_minn = calc_pct(minn, *ref["minnesota"], higher_is_better=False)
+    pct_eq   = calc_pct(eq,   *ref["eq5d"])
+
+    avg_pct = (pct_kccq + pct_pcs + pct_minn + pct_eq) // 4
+
+    if avg_pct >= 75:
+        g_label, g_badge = "QoL BON", "BON"
+        g_style = "background:linear-gradient(135deg,rgba(16,185,129,.1),rgba(5,46,22,.07));border:1px solid rgba(16,185,129,.3);"
+        g_color = "#4ade80"
+        g_badge_style = "background:rgba(16,185,129,.12);border:1px solid rgba(16,185,129,.28);color:#4ade80;"
+    elif avg_pct >= 50:
+        g_label, g_badge = "QoL MODÉRÉ", "MODÉRÉ"
+        g_style = "background:linear-gradient(135deg,rgba(249,115,22,.1),rgba(67,20,7,.07));border:1px solid rgba(249,115,22,.3);"
+        g_color = "#fb923c"
+        g_badge_style = "background:rgba(249,115,22,.12);border:1px solid rgba(249,115,22,.28);color:#fb923c;"
+    elif avg_pct >= 25:
+        g_label, g_badge = "QoL LIMITE", "LIMITE"
+        g_style = "background:linear-gradient(135deg,rgba(225,29,72,.1),rgba(136,19,55,.07));border:1px solid rgba(225,29,72,.3);"
+        g_color = "#fb7185"
+        g_badge_style = "background:rgba(249,115,22,.12);border:1px solid rgba(249,115,22,.28);color:#fb923c;"
+    else:
+        g_label, g_badge = "QoL CRITIQUE", "CRITIQUE"
+        g_style = "background:linear-gradient(135deg,rgba(239,68,68,.15),rgba(127,29,29,.1));border:1px solid rgba(239,68,68,.4);"
+        g_color = "#f87171"
+        g_badge_style = "background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.28);color:#f87171;"
+
+    if pct_pcs < 33:
+        g_stage = "SF-36 physique bas — kinésithérapie cardiaque recommandée · Réévaluation 3 mois"
+    elif pct_kccq < 33:
+        g_stage = f"KCCQ bas — surveillance rapprochée · prochain point T{len(evals)}"
+    else:
+        g_stage = "Profil stable · prochaine évaluation planifiée"
+
+    # ── KPI CARDS ──
+    st.markdown(f"""
+<div class="hdb-kpis">
+  <div class="hdb-kpi {kpi_cls(pct_kccq)}">
+    <div class="hdb-kv">{kccq}</div><div class="hdb-kl">KCCQ /100</div>
+  </div>
+  <div class="hdb-kpi {kpi_cls(pct_kccq)}">
+    <div class="hdb-kv">P{pct_kccq}</div><div class="hdb-kl">Percentile</div>
+  </div>
+  <div class="hdb-kpi {kpi_cls(pct_eq)}">
+    <div class="hdb-kv">{eq:.2f}</div><div class="hdb-kl">EQ-5D utility</div>
+  </div>
+  <div class="hdb-kpi hdb-kpi-t">
+    <div class="hdb-kv">600</div><div class="hdb-kl">Patients réf.</div>
+  </div>
+</div>""", unsafe_allow_html=True)
+
+    # ── SECTION TITLE ──
+    moment_short = last["moment"].split("—")[-1].strip() if "—" in last["moment"] else last["moment"]
+    sexe_short = sexe[:1] if sexe else "?"
+    st.markdown(f"""
+<div class="hdb-sec-title">
+  Scores qualité de vie — Patient : {sexe_short} · {age} ans · {moment_short}
+  <span style="flex:1;height:1px;background:rgba(251,113,133,0.15);display:inline-block;"></span>
+</div>""", unsafe_allow_html=True)
+
+    # ── SCORE ROWS ──
+    def score_row(name, sub, score_str, pct_val, bar_pct):
+        bc = badge_cls(pct_val)
+        rc = row_cls(pct_val)
+        fc = bar_col(pct_val)
+        bar_pct = min(max(bar_pct, 0), 100)
+        return f"""
+<div class="hdb-qrow {rc}">
+  <div><div class="hdb-qname">{name}</div><div class="hdb-qval">{sub}</div></div>
+  <div><div class="hdb-sbar"><div class="hdb-sfill" style="width:{bar_pct:.0f}%;background:{fc};"></div></div></div>
+  <div class="hdb-qscore">{score_str}</div>
+  <span class="hdb-badge {bc}">P{pct_val}</span>
+</div>"""
+
+    minn_bar = (105 - minn) / 105 * 100 if minn else 0
+
+    rows = (
+        score_row("KCCQ", "23 items · 5 domaines", f"{kccq}/100", pct_kccq, kccq) +
+        score_row("SF-36 PCS", "Composante physique", f"{pcs}/100", pct_pcs, pcs) +
+        score_row("Minnesota LHFQ", "Score inversé", f"{minn}/105", pct_minn, minn_bar) +
+        score_row("SF-36 MCS", "Composante mentale", f"{mcs}/100", pct_mcs, mcs) +
+        score_row("EQ-5D-5L", "Utilité HAS 2022", f"{eq:.2f}", pct_eq, eq * 100)
+    )
+
+    # ── INTERPRETATION CARD ──
+    interp = f"""
+<div class="hdb-score" style="{g_style}">
+  <div class="hdb-score-icon">🫀</div>
+  <div>
+    <div class="hdb-score-lbl">Interprétation globale</div>
+    <div class="hdb-score-val" style="color:{g_color};">{g_label}
+      <small>· KCCQ {kccq} · EQ-5D {eq:.2f}</small></div>
+    <div class="hdb-score-stage" style="color:{g_color};">{g_stage}</div>
+  </div>
+  <span class="hdb-score-badge" style="{g_badge_style}">{g_badge}</span>
+</div>"""
 
     # ── ALERTES ──
-    def check_alert(score, outil, higher_is_better=True):
-        if len(evals) < 2:
-            return None
-        prev = evals[-2].get(outil)
-        curr = evals[-1].get(outil)
-        if prev is None or curr is None:
-            return None
-        delta = curr - prev if higher_is_better else prev - curr
-        if delta < -10:
-            return f"⚠️ Dégradation détectée sur {outil.upper()} : {prev:.0f} → {curr:.0f} (Δ {delta:+.0f})"
-        return None
-
-    alertes = [
-        check_alert(last.get("kccq"), "kccq"),
-        check_alert(last.get("sf36_pcs"), "sf36_pcs"),
-        check_alert(last.get("minnesota"), "minnesota", higher_is_better=False),
-    ]
-    alertes = [a for a in alertes if a]
+    alertes = []
+    if len(evals) >= 2:
+        for outil, hib, lbl in [("kccq",True,"KCCQ"),("sf36_pcs",True,"SF-36 PCS"),("minnesota",False,"Minnesota")]:
+            prev = evals[-2].get(outil)
+            curr = evals[-1].get(outil)
+            if prev is not None and curr is not None:
+                delta = (curr - prev) if hib else (prev - curr)
+                if delta < -10:
+                    alertes.append(f"⚠ Dégradation {lbl} : {prev:.0f} → {curr:.0f} (Δ {delta:+.0f})")
 
     if alertes:
-        for a in alertes:
-            st.markdown(f'<div class="alert-danger">{a}</div>', unsafe_allow_html=True)
+        alert_html = '<div class="hdb-alert">' + " &nbsp;·&nbsp; ".join(alertes) + "</div>"
     else:
-        st.markdown('<div class="alert-success">✅ Aucune dégradation détectée</div>', unsafe_allow_html=True)
+        alert_html = '<div class="hdb-alert-ok">✓ Aucune dégradation détectée vs évaluation précédente</div>'
+
+    st.markdown(rows + interp + alert_html, unsafe_allow_html=True)
 
     st.markdown("---")
-
-    # ── SCORES ACTUELS ──
-    st.markdown("### Scores actuels vs cohorte de référence")
-    col1, col2, col3, col4 = st.columns(4)
-
-    def percentile_label(score, mean, sd, higher_is_better=True):
-        pct = stats.norm.cdf(score, mean, sd) * 100
-        if not higher_is_better:
-            pct = 100 - pct
-        return int(pct)
-
-    with col1:
-        kccq = last.get("kccq", 0)
-        pct = percentile_label(kccq, *ref["kccq"])
-        st.metric("KCCQ", f"{kccq}/100", f"{pct}e percentile")
-    with col2:
-        pcs = last.get("sf36_pcs", 0)
-        pct = percentile_label(pcs, *ref["sf36_pcs"])
-        st.metric("SF-36 PCS", f"{pcs}/100", f"{pct}e percentile")
-    with col3:
-        minn = last.get("minnesota", 0)
-        pct = percentile_label(minn, *ref["minnesota"], higher_is_better=False)
-        st.metric("Minnesota", f"{minn}/105", f"{pct}e percentile ↓ mieux")
-    with col4:
-        eq = last.get("eq5d", 0)
-        pct = percentile_label(eq, *ref["eq5d"])
-        st.metric("EQ-5D", f"{eq:.2f}/1", f"{pct}e percentile")
-
-    st.markdown("---")
-
-    # ── GRAPHIQUES ──
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.markdown("### Profil QdV vs cohorte")
-        fig, ax = plt.subplots(figsize=(7, 4))
-        fig.patch.set_facecolor("#0f172a")
-        ax.set_facecolor("#1e293b")
-
-        outils_graph = ["KCCQ", "SF-36 PCS", "SF-36 MCS", "EQ-5D×100"]
-        scores_patient = [
-            last.get("kccq", 0), last.get("sf36_pcs", 0),
-            last.get("sf36_mcs", 0), last.get("eq5d", 0) * 100
-        ]
-        ref_moyennes = [
-            ref["kccq"][0], ref["sf36_pcs"][0],
-            ref["sf36_mcs"][0], ref["eq5d"][0] * 100
-        ]
-
-        x = np.arange(len(outils_graph))
-        w = 0.35
-        ax.bar(x - w/2, ref_moyennes, w, label=f"Référence {statut}", color=ref["color"], alpha=0.5)
-        ax.bar(x + w/2, scores_patient, w, label="Patient", color="#3b82f6", alpha=0.9)
-        ax.set_xticks(x)
-        ax.set_xticklabels(outils_graph, color="#94a3b8", fontsize=9)
-        ax.tick_params(colors="#94a3b8")
-        ax.set_ylabel("Score (/100)", color="#94a3b8")
-        ax.legend(facecolor="#1e293b", labelcolor="white", fontsize=9)
-        ax.spines[["top","right"]].set_visible(False)
-        ax.spines[["bottom","left"]].set_color("#334155")
-        ax.set_title("Patient vs cohorte de référence", color="white", fontsize=11)
-        plt.tight_layout()
-        st.pyplot(fig)
-        plt.close()
-
-    with col2:
-        st.markdown("### Paramètres cliniques")
-        fig, axes = plt.subplots(2, 2, figsize=(7, 4))
-        fig.patch.set_facecolor("#0f172a")
-
-        params = [
-            ("BNP (pg/mL)", last.get("bnp", 0), ref["bnp"], False, "#ef4444"),
-            ("6MWT (m)", last.get("6mwt", 0), ref["6mwt"], True, "#10b981"),
-            ("LVEF (%)", last.get("lvef", 0), ref["lvef"], True, "#3b82f6"),
-            ("NYHA", ["I","II","III","IV"].index(last.get("nyha","II"))+1, (2.5, 1), False, "#f59e0b"),
-        ]
-
-        for ax, (label, val, ref_vals, higher_better, color) in zip(axes.flat, params):
-            ax.set_facecolor("#1e293b")
-            ref_m, ref_sd = ref_vals
-            ax.barh([0], [ref_m], color="#334155", height=0.4, label="Référence")
-            ax.barh([0.5], [val], color=color, height=0.4, label="Patient", alpha=0.9)
-            ax.set_yticks([0, 0.5])
-            ax.set_yticklabels(["Réf.", "Patient"], color="#94a3b8", fontsize=8)
-            ax.set_title(label, color="white", fontsize=9, fontweight="bold")
-            ax.tick_params(colors="#94a3b8", labelsize=8)
-            ax.spines[["top","right","left"]].set_visible(False)
-            ax.spines["bottom"].set_color("#334155")
-
-        plt.tight_layout()
-        st.pyplot(fig)
-        plt.close()
 
     # ── TRAJECTOIRE ──
-    if len(evals) >= 2:
-        st.markdown("---")
-        st.markdown("### Trajectoire longitudinale T0→T5")
-        fig, ax = plt.subplots(figsize=(12, 4))
-        fig.patch.set_facecolor("#0f172a")
-        ax.set_facecolor("#1e293b")
+    st.markdown("### Trajectoire longitudinale T0→T5")
+    fig, ax = plt.subplots(figsize=(12, 4))
+    fig.patch.set_facecolor("#0f172a")
+    ax.set_facecolor("#1e293b")
 
-        moments = [e["moment"].split("—")[0].strip() for e in evals]
-        for outil, color, label in [
-            ("kccq", "#3b82f6", "KCCQ"),
-            ("sf36_pcs", "#10b981", "SF-36 PCS"),
-        ]:
-            vals = [e.get(outil, None) for e in evals]
-            if any(v is not None for v in vals):
-                ax.plot(range(len(evals)), vals, "o-", color=color, linewidth=2.5,
-                        markersize=8, label=label)
-                for i, v in enumerate(vals):
-                    if v:
-                        ax.annotate(f"{v:.0f}", (i, v), textcoords="offset points",
-                                    xytext=(0, 10), ha="center", color=color, fontsize=9)
+    labels = []
+    for i, e in enumerate(evals):
+        m = e.get("moment", "")
+        labels.append(m.split("—")[0].strip() if "—" in m else f"Eval {i+1}")
 
-        ax.set_xticks(range(len(evals)))
-        ax.set_xticklabels(moments, color="#94a3b8", fontsize=9, rotation=10)
-        ax.tick_params(colors="#94a3b8")
-        ax.set_ylabel("Score QdV", color="#94a3b8")
-        ax.legend(facecolor="#1e293b", labelcolor="white", fontsize=9)
-        ax.spines[["top","right"]].set_visible(False)
-        ax.spines[["bottom","left"]].set_color("#334155")
-        ax.set_title("Évolution QdV au fil des évaluations", color="white", fontsize=11)
-        plt.tight_layout()
-        st.pyplot(fig)
-        plt.close()
+    for outil, color, lbl in [
+        ("kccq", "#3b82f6", "KCCQ"),
+        ("sf36_pcs", "#10b981", "SF-36 PCS"),
+        ("minnesota", "#f59e0b", "Minnesota"),
+    ]:
+        vals = [e.get(outil) for e in evals]
+        if any(v is not None for v in vals):
+            ax.plot(range(len(evals)), vals, "o-", color=color, linewidth=2.5,
+                    markersize=8, label=lbl)
+            for i, v in enumerate(vals):
+                if v is not None:
+                    ax.annotate(f"{v:.0f}", (i, v), textcoords="offset points",
+                                xytext=(0, 10), ha="center", color=color,
+                                fontsize=9, fontweight="bold")
+
+    ax.set_xticks(range(len(evals)))
+    ax.set_xticklabels(labels, color="#94a3b8", fontsize=9)
+    ax.tick_params(colors="#94a3b8")
+    ax.set_ylabel("Score QdV", color="#94a3b8")
+    ax.legend(facecolor="#1e293b", labelcolor="white", fontsize=9)
+    ax.spines[["top", "right"]].set_visible(False)
+    ax.spines[["bottom", "left"]].set_color("#334155")
+    ax.grid(axis="y", color="#334155", alpha=0.35)
+    ax.set_title("Évolution QdV au fil des évaluations", color="white", fontsize=11)
+    plt.tight_layout()
+    st.pyplot(fig)
+    plt.close()
+
+    # ── PARAMÈTRES CLINIQUES ──
+    st.markdown("### Paramètres cliniques")
+
+    def clin_card(label, val, ref_tuple, unit, higher_better):
+        if val and ref_tuple[1] > 0:
+            pv = int(stats.norm.cdf(val, ref_tuple[0], ref_tuple[1]) * 100)
+            if not higher_better:
+                pv = 100 - pv
+        else:
+            pv = 50
+        bc = badge_cls(pv)
+        fc = bar_col(pv)
+        return f"""
+<div style="background:#1e293b;border:1px solid #334155;border-radius:10px;padding:12px 16px;margin-bottom:8px;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+    <span style="color:#e2e8f0;font-weight:700;font-size:0.8rem;">{label}</span>
+    <span class="hdb-badge {bc}">{val} {unit}</span>
+  </div>
+  <div class="hdb-sbar" style="height:8px;">
+    <div class="hdb-sfill" style="width:{min(pv,100)}%;background:{fc};"></div>
+  </div>
+  <div style="display:flex;justify-content:space-between;margin-top:5px;">
+    <span style="color:#475569;font-size:0.64rem;">Réf. {statut} : {ref_tuple[0]:.0f} {unit}</span>
+    <span style="color:#64748b;font-size:0.64rem;">P{pv}</span>
+  </div>
+</div>"""
+
+    bnp_v  = last.get("bnp")  or 0
+    mwt_v  = last.get("6mwt") or 0
+    lvef_v = last.get("lvef") or 0
+    nyha_v = last.get("nyha", "II")
+    nyha_good = nyha_v in ["I", "II"]
+
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown(
+            clin_card("BNP", bnp_v,  ref["bnp"],  "pg/mL", False) +
+            clin_card("6MWT", mwt_v, ref["6mwt"], "m",     True),
+            unsafe_allow_html=True)
+    with col2:
+        st.markdown(
+            clin_card("LVEF", lvef_v, ref["lvef"], "%", True) +
+            f"""<div style="background:#1e293b;border:1px solid #334155;border-radius:10px;padding:12px 16px;">
+  <div style="display:flex;justify-content:space-between;align-items:center;">
+    <span style="color:#e2e8f0;font-weight:700;font-size:0.8rem;">NYHA</span>
+    <span class="hdb-badge {'hdb-badge-g' if nyha_good else 'hdb-badge-o' if nyha_v=='III' else 'hdb-badge-r'}">{nyha_v}</span>
+  </div>
+  <div style="color:#64748b;font-size:0.64rem;margin-top:6px;">Classe I (meilleur) → IV (sévère)</div>
+</div>""",
+            unsafe_allow_html=True)
 
     st.markdown("---")
     col1, col2 = st.columns(2)
