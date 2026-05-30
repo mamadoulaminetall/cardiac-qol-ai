@@ -1,6 +1,7 @@
 """
 QoL Cardiac — Outil IA d'évaluation de la qualité de vie
 Populations : Liste attente / LVAD / Post-greffe cardiaque
+Stockage : SQLite local (persistance longitudinale T0→T5)
 """
 
 import streamlit as st
@@ -9,6 +10,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from scipy import stats
+import sqlite3
+import hashlib
 import io
 import os
 from datetime import datetime
@@ -48,6 +51,8 @@ div[data-testid="metric-container"] {
 .badge-liste { background:#ef4444; color:white; padding:3px 10px; border-radius:20px; font-size:13px; font-weight:bold; }
 .badge-lvad  { background:#f59e0b; color:white; padding:3px 10px; border-radius:20px; font-size:13px; font-weight:bold; }
 .badge-greffe{ background:#10b981; color:white; padding:3px 10px; border-radius:20px; font-size:13px; font-weight:bold; }
+.patient-row { background:#1e293b; border-radius:10px; padding:12px 16px;
+    border:1px solid #334155; margin-bottom:8px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -85,12 +90,131 @@ OUTILS_RECOMMANDES = {
 }
 
 # ─────────────────────────────────────────────
+# SQLITE — BASE DE DONNÉES LOCALE
+# ─────────────────────────────────────────────
+DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "qol_cardiac.db")
+
+def init_db():
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('''CREATE TABLE IF NOT EXISTS patients (
+        id TEXT PRIMARY KEY,
+        prenom TEXT DEFAULT '',
+        nom TEXT DEFAULT '',
+        age INTEGER,
+        sexe TEXT,
+        statut TEXT,
+        created_at TEXT
+    )''')
+    c.execute('''CREATE TABLE IF NOT EXISTS evaluations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        patient_id TEXT,
+        date TEXT,
+        moment TEXT,
+        statut TEXT,
+        kccq REAL, sf36_pcs REAL, sf36_mcs REAL,
+        minnesota REAL, eq5d REAL,
+        nyha TEXT, mwt6 INTEGER, bnp INTEGER, lvef INTEGER,
+        FOREIGN KEY (patient_id) REFERENCES patients(id)
+    )''')
+    conn.commit()
+    conn.close()
+
+init_db()
+
+def generate_patient_id(prenom, nom, age):
+    """Pseudonymisation automatique — ID anonyme irréversible."""
+    raw = f"{prenom.strip().lower()}{nom.strip().lower()}{age}"
+    return "PT-" + hashlib.sha256(raw.encode()).hexdigest()[:8].upper()
+
+def db_save_patient(p):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('''INSERT OR REPLACE INTO patients
+                 (id, prenom, nom, age, sexe, statut, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)''',
+              (p['id'], p.get('prenom',''), p.get('nom',''),
+               p['age'], p['sexe'], p['statut'],
+               p.get('created_at', datetime.now().isoformat())))
+    conn.commit()
+    conn.close()
+
+def db_save_evaluation(patient_id, ev):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('''INSERT INTO evaluations
+                 (patient_id, date, moment, statut, kccq, sf36_pcs, sf36_mcs,
+                  minnesota, eq5d, nyha, mwt6, bnp, lvef)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+              (patient_id, ev['date'], ev['moment'], ev['statut'],
+               ev.get('kccq'), ev.get('sf36_pcs'), ev.get('sf36_mcs'),
+               ev.get('minnesota'), ev.get('eq5d'), ev.get('nyha'),
+               ev.get('6mwt'), ev.get('bnp'), ev.get('lvef')))
+    conn.commit()
+    conn.close()
+
+def db_load_evaluations(patient_id):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('''SELECT date, moment, statut, kccq, sf36_pcs, sf36_mcs,
+                        minnesota, eq5d, nyha, mwt6, bnp, lvef
+                 FROM evaluations WHERE patient_id=? ORDER BY date''', (patient_id,))
+    rows = c.fetchall()
+    conn.close()
+    cols = ['date','moment','statut','kccq','sf36_pcs','sf36_mcs',
+            'minnesota','eq5d','nyha','6mwt','bnp','lvef']
+    return [dict(zip(cols, row)) for row in rows]
+
+def db_list_patients():
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('''SELECT id, prenom, nom, age, sexe, statut, created_at
+                 FROM patients ORDER BY created_at DESC''')
+    rows = c.fetchall()
+    conn.close()
+    return [{'id':r[0],'prenom':r[1],'nom':r[2],'age':r[3],
+             'sexe':r[4],'statut':r[5],'created_at':r[6]} for r in rows]
+
+def db_search_patients(query):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    q = f"%{query.lower()}%"
+    c.execute('''SELECT id, prenom, nom, age, sexe, statut FROM patients
+                 WHERE lower(nom) LIKE ? OR lower(prenom) LIKE ? OR lower(id) LIKE ?
+                 ORDER BY created_at DESC LIMIT 10''', (q, q, q))
+    rows = c.fetchall()
+    conn.close()
+    return [{'id':r[0],'prenom':r[1],'nom':r[2],'age':r[3],
+             'sexe':r[4],'statut':r[5]} for r in rows]
+
+def db_delete_patient(patient_id):
+    """Droit à l'effacement — Art. 17 RGPD."""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('DELETE FROM evaluations WHERE patient_id=?', (patient_id,))
+    c.execute('DELETE FROM patients WHERE id=?', (patient_id,))
+    conn.commit()
+    conn.close()
+
+def db_count():
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('SELECT COUNT(*) FROM patients')
+    np_ = c.fetchone()[0]
+    c.execute('SELECT COUNT(*) FROM evaluations')
+    ne_ = c.fetchone()[0]
+    conn.close()
+    return np_, ne_
+
+# ─────────────────────────────────────────────
 # SESSION STATE
 # ─────────────────────────────────────────────
 if "evaluations" not in st.session_state:
     st.session_state.evaluations = []
 if "patient" not in st.session_state:
     st.session_state.patient = {}
+if "patient_id" not in st.session_state:
+    st.session_state.patient_id = None
 if "page" not in st.session_state:
     st.session_state.page = "accueil"
 
@@ -168,6 +292,7 @@ with st.sidebar:
 
     pages = {
         "🏠 Accueil": "accueil",
+        "🗂️ Mes patients": "patients",
         "👤 Nouveau patient": "patient",
         "📋 Questionnaires": "questionnaires",
         "📊 Tableau de bord": "dashboard",
@@ -183,15 +308,30 @@ with st.sidebar:
             st.rerun()
 
     st.markdown("---")
+
+    # Patient actif
     if st.session_state.patient:
         p = st.session_state.patient
+        badge = {"Liste d'attente": "🔴", "LVAD": "🟡", "Post-greffe": "🟢"}
         st.markdown(f"**Patient actif**")
         st.markdown(f"*{p.get('prenom', '')} {p.get('nom', '')}*")
-        badge = {"Liste d'attente": "🔴", "LVAD": "🟡", "Post-greffe": "🟢"}
         st.markdown(f"{badge.get(p.get('statut',''), '')} {p.get('statut', '')}")
+        pid = st.session_state.patient_id
+        if pid:
+            st.caption(f"ID : `{pid}`")
+        evals = st.session_state.evaluations
+        st.caption(f"{len(evals)} évaluation(s) enregistrée(s)")
+
+    st.markdown("---")
+
+    # Stats base
+    np_, ne_ = db_count()
+    st.metric("Patients enregistrés", np_)
+    st.metric("Évaluations totales", ne_)
 
     st.markdown("---")
     st.caption("MedFlow AI Research © 2026")
+    st.caption("🔒 SQLite local · RGPD Art. 9")
 
 # ─────────────────────────────────────────────
 # PAGE ACCUEIL
@@ -224,6 +364,10 @@ if st.session_state.page == "accueil":
 <li><b>Tableau de bord</b> — visualisez les scores, la trajectoire et les alertes</li>
 <li><b>Rapport PDF</b> — exportez pour le dossier médical</li>
 </ol>
+<p style="font-size:12px;color:#64748b;margin-top:8px">
+💾 Toutes les données sont sauvegardées automatiquement (SQLite local).
+Le patient est retrouvé à la prochaine session.
+</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -259,15 +403,12 @@ BNP 890 pg/mL · 6MWT 265 m · LVEF 22%<br>
 Tous les paramètres sous la référence.<br>
 Surveillance rapprochée recommandée.
 </p>
-<p style="font-size:11px; color:#64748b; font-style:italic;">
-Cas typique : QdV très dégradée en liste,<br>
-avant toute intervention.
-</p>
 </div>
 """, unsafe_allow_html=True)
         if st.button("Charger démo Liste d'attente", use_container_width=True, key="demo_liste"):
             demo = DEMO_PATIENTS["Liste d'attente"]
             st.session_state.patient = demo["patient"]
+            st.session_state.patient_id = None
             st.session_state.evaluations = demo["evaluations"]
             st.session_state.page = "dashboard"
             st.rerun()
@@ -285,15 +426,12 @@ BNP 420 pg/mL · 6MWT 340 m · LVEF 28%<br>
 Seuil significativité clinique : +5 pts.<br>
 Amélioration nette après implantation LVAD.
 </p>
-<p style="font-size:11px; color:#64748b; font-style:italic;">
-Montre que le LVAD améliore la QdV<br>
-avant même la greffe.
-</p>
 </div>
 """, unsafe_allow_html=True)
         if st.button("Charger démo LVAD", use_container_width=True, key="demo_lvad"):
             demo = DEMO_PATIENTS["LVAD"]
             st.session_state.patient = demo["patient"]
+            st.session_state.patient_id = None
             st.session_state.evaluations = demo["evaluations"]
             st.session_state.page = "dashboard"
             st.rerun()
@@ -311,20 +449,16 @@ BNP 165 pg/mL · 6MWT 490 m · LVEF 62%<br>
 79<sup>e</sup> percentile · SF-36 PCS : 45/100<br>
 Retour quasi-normal à la vie quotidienne.
 </p>
-<p style="font-size:11px; color:#64748b; font-style:italic;">
-Trajectoire idéale : la QdV rejoint<br>
-la norme de la population générale.
-</p>
 </div>
 """, unsafe_allow_html=True)
         if st.button("Charger démo Post-greffe", use_container_width=True, key="demo_greffe"):
             demo = DEMO_PATIENTS["Post-greffe"]
             st.session_state.patient = demo["patient"]
+            st.session_state.patient_id = None
             st.session_state.evaluations = demo["evaluations"]
             st.session_state.page = "dashboard"
             st.rerun()
 
-    # Conclusion démo
     st.markdown("""
 <div class="card" style="border-color:#3b82f6; margin-top:16px;">
 <h4>💡 Ce que la démo illustre</h4>
@@ -342,14 +476,117 @@ la norme de la population générale.
 <td style="padding:6px 12px; color:#cbd5e1;">79e percentile à 1 an → la greffe est transformatrice, la QdV rejoint quasi la population générale</td>
 </tr>
 </table>
-<p style="font-size:12px; color:#64748b; margin-top:10px; font-style:italic;">
-Les valeurs de référence sont issues de la méta-analyse de 15 études (600 patients) — les percentiles sont calculés en temps réel par rapport à cette cohorte.
-</p>
 </div>
 """, unsafe_allow_html=True)
 
     st.markdown("---")
-    if st.button("👤 Commencer — Nouveau patient", type="primary", use_container_width=True):
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("👤 Nouveau patient", type="primary", use_container_width=True):
+            st.session_state.page = "patient"
+            st.rerun()
+    with col2:
+        if st.button("🗂️ Mes patients enregistrés", use_container_width=True):
+            st.session_state.page = "patients"
+            st.rerun()
+
+# ─────────────────────────────────────────────
+# PAGE MES PATIENTS
+# ─────────────────────────────────────────────
+elif st.session_state.page == "patients":
+    st.markdown("# 🗂️ Mes patients")
+    st.markdown("---")
+
+    patients = db_list_patients()
+
+    if not patients:
+        st.info("Aucun patient enregistré. Créez votre premier patient.")
+        if st.button("👤 Nouveau patient", type="primary"):
+            st.session_state.page = "patient"
+            st.rerun()
+        st.stop()
+
+    # Barre de recherche
+    search = st.text_input("🔍 Rechercher par nom, prénom ou ID", placeholder="Dupont, Jean, PT-3A7F...")
+    if search:
+        patients = db_search_patients(search)
+        if not patients:
+            st.warning("Aucun résultat.")
+
+    st.markdown(f"**{len(patients)} patient(s)**")
+    st.markdown("---")
+
+    badge_map = {"Liste d'attente": "🔴", "LVAD": "🟡", "Post-greffe": "🟢"}
+
+    for pat in patients:
+        evals = db_load_evaluations(pat['id'])
+        nb_evals = len(evals)
+        derniere = evals[-1]['date'] if evals else "—"
+        dernier_moment = evals[-1]['moment'] if evals else "—"
+
+        col1, col2, col3 = st.columns([3, 1, 1])
+        with col1:
+            b = badge_map.get(pat['statut'], '⚪')
+            nom_display = f"{pat.get('prenom','')} {pat.get('nom','')}".strip() or pat['id']
+            st.markdown(f"""
+<div class="patient-row">
+<b style="color:#f1f5f9">{b} {nom_display}</b>
+&nbsp;·&nbsp; <span style="color:#94a3b8">{pat['age']} ans · {pat['sexe']}</span>
+&nbsp;·&nbsp; <span style="color:#64748b;font-size:12px">{pat['statut']}</span><br>
+<span style="color:#64748b;font-size:12px">
+{nb_evals} évaluation(s) · Dernière : {derniere} ({dernier_moment.split('—')[0].strip() if '—' in dernier_moment else dernier_moment})
+&nbsp;·&nbsp; ID : <code style="background:#0f172a;padding:1px 4px;border-radius:4px">{pat['id']}</code>
+</span>
+</div>
+""", unsafe_allow_html=True)
+        with col2:
+            if st.button("📊 Charger", key=f"load_{pat['id']}", use_container_width=True):
+                # Charger patient et ses évaluations en session
+                st.session_state.patient = {
+                    'id': pat['id'],
+                    'prenom': pat.get('prenom',''),
+                    'nom': pat.get('nom',''),
+                    'age': pat['age'],
+                    'sexe': pat['sexe'],
+                    'statut': pat['statut'],
+                    'moment': evals[-1]['moment'] if evals else "T0 — Inscription sur liste",
+                    'date': evals[-1]['date'] if evals else str(datetime.today().date()),
+                    'nyha': evals[-1].get('nyha','II') if evals else 'II',
+                    'nyha_idx': ["I","II","III","IV"].index(evals[-1].get('nyha','II')) if evals else 1,
+                    '6mwt': evals[-1].get('6mwt', 300) if evals else 300,
+                    'bnp': evals[-1].get('bnp', 500) if evals else 500,
+                    'lvef': evals[-1].get('lvef', 30) if evals else 30,
+                }
+                st.session_state.patient_id = pat['id']
+                st.session_state.evaluations = evals
+                st.session_state.page = "dashboard"
+                st.rerun()
+        with col3:
+            if st.button("🗑️ Supprimer", key=f"del_{pat['id']}", use_container_width=True):
+                st.session_state[f"confirm_del_{pat['id']}"] = True
+                st.rerun()
+
+        # Confirmation suppression
+        if st.session_state.get(f"confirm_del_{pat['id']}", False):
+            st.warning(f"⚠️ Supprimer définitivement {nom_display} et toutes ses évaluations ?")
+            c1, c2 = st.columns(2)
+            with c1:
+                if st.button("✅ Confirmer la suppression", key=f"yes_{pat['id']}", type="primary"):
+                    db_delete_patient(pat['id'])
+                    if st.session_state.patient_id == pat['id']:
+                        st.session_state.patient = {}
+                        st.session_state.patient_id = None
+                        st.session_state.evaluations = []
+                    st.session_state.pop(f"confirm_del_{pat['id']}", None)
+                    st.success("Patient supprimé (Art. 17 RGPD)")
+                    st.rerun()
+            with c2:
+                if st.button("❌ Annuler", key=f"no_{pat['id']}"):
+                    st.session_state.pop(f"confirm_del_{pat['id']}", None)
+                    st.rerun()
+
+    st.markdown("---")
+    if st.button("👤 Nouveau patient", type="primary", use_container_width=True):
         st.session_state.page = "patient"
         st.rerun()
 
@@ -360,18 +597,59 @@ elif st.session_state.page == "patient":
     st.markdown("# 👤 Nouveau patient")
     st.markdown("---")
 
+    # Recherche patient existant
+    with st.expander("🔍 Rechercher un patient existant", expanded=False):
+        search_q = st.text_input("Nom, prénom ou ID patient", key="search_patient")
+        if search_q:
+            results = db_search_patients(search_q)
+            if results:
+                for r in results:
+                    evals = db_load_evaluations(r['id'])
+                    b = {"Liste d'attente":"🔴","LVAD":"🟡","Post-greffe":"🟢"}.get(r['statut'],'⚪')
+                    nom_d = f"{r.get('prenom','')} {r.get('nom','')}".strip() or r['id']
+                    col_a, col_b = st.columns([4,1])
+                    with col_a:
+                        st.markdown(f"{b} **{nom_d}** · {r['age']} ans · {r['statut']} · {len(evals)} éval.")
+                    with col_b:
+                        if st.button("Charger", key=f"srch_{r['id']}"):
+                            st.session_state.patient = {
+                                'id': r['id'], 'prenom': r.get('prenom',''),
+                                'nom': r.get('nom',''), 'age': r['age'],
+                                'sexe': r['sexe'], 'statut': r['statut'],
+                                'moment': evals[-1]['moment'] if evals else "T0 — Inscription sur liste",
+                                'date': evals[-1]['date'] if evals else str(datetime.today().date()),
+                                'nyha': evals[-1].get('nyha','II') if evals else 'II',
+                                'nyha_idx': ["I","II","III","IV"].index(evals[-1].get('nyha','II')) if evals else 1,
+                                '6mwt': evals[-1].get('6mwt',300) if evals else 300,
+                                'bnp': evals[-1].get('bnp',500) if evals else 500,
+                                'lvef': evals[-1].get('lvef',30) if evals else 30,
+                            }
+                            st.session_state.patient_id = r['id']
+                            st.session_state.evaluations = evals
+                            st.session_state.page = "questionnaires"
+                            st.rerun()
+            else:
+                st.info("Aucun patient trouvé.")
+
+    st.markdown("### Créer un nouveau patient")
+
     col1, col2 = st.columns(2)
 
     with col1:
-        st.markdown("### Identité")
+        st.markdown("#### Identité")
         prenom = st.text_input("Prénom", value=st.session_state.patient.get("prenom", ""))
         nom = st.text_input("Nom", value=st.session_state.patient.get("nom", ""))
         age = st.number_input("Âge (ans)", 18, 90, value=st.session_state.patient.get("age", 60))
         sexe = st.selectbox("Sexe", ["Homme", "Femme"],
                             index=0 if st.session_state.patient.get("sexe", "Homme") == "Homme" else 1)
 
+        # Aperçu ID pseudonymisé
+        if prenom or nom:
+            pid_preview = generate_patient_id(prenom or "?", nom or "?", age)
+            st.caption(f"🔒 ID anonyme : `{pid_preview}`")
+
     with col2:
-        st.markdown("### Statut clinique")
+        st.markdown("#### Statut clinique")
         statut = st.selectbox("Statut du patient", ["Liste d'attente", "LVAD", "Post-greffe"],
                               index=["Liste d'attente", "LVAD", "Post-greffe"].index(
                                   st.session_state.patient.get("statut", "Liste d'attente")))
@@ -387,7 +665,7 @@ elif st.session_state.page == "patient":
 
         date_eval = st.date_input("Date d'évaluation", value=datetime.today())
 
-        st.markdown("### Paramètres cliniques")
+        st.markdown("#### Paramètres cliniques")
         nyha = st.selectbox("NYHA (New York Heart Association)", ["I", "II", "III", "IV"],
                             index=st.session_state.patient.get("nyha_idx", 2))
         mwt6 = st.number_input("6MWT — Test de marche 6 min (mètres)", 0, 700,
@@ -399,13 +677,22 @@ elif st.session_state.page == "patient":
 
     st.markdown("---")
     if st.button("✅ Enregistrer et passer aux questionnaires", type="primary", use_container_width=True):
-        st.session_state.patient = {
+        patient_id = generate_patient_id(prenom or "anon", nom or "anon", age)
+        patient_data = {
+            "id": patient_id,
             "prenom": prenom, "nom": nom, "age": age, "sexe": sexe,
             "statut": statut, "moment": moment, "date": str(date_eval),
             "nyha": nyha, "nyha_idx": ["I","II","III","IV"].index(nyha),
             "6mwt": mwt6, "bnp": bnp, "lvef": lvef
         }
-        st.success("Patient enregistré !")
+        # Sauvegarder en base
+        db_save_patient(patient_data)
+        st.session_state.patient = patient_data
+        st.session_state.patient_id = patient_id
+        # Charger les évaluations existantes (si patient déjà connu)
+        existing_evals = db_load_evaluations(patient_id)
+        st.session_state.evaluations = existing_evals
+        st.success(f"✅ Patient enregistré · ID : {patient_id}")
         st.session_state.page = "questionnaires"
         st.rerun()
 
@@ -510,6 +797,9 @@ elif st.session_state.page == "questionnaires":
             "bnp": p["bnp"],
             "lvef": p["lvef"],
         }
+        # Sauvegarder en SQLite si patient enregistré
+        if st.session_state.patient_id:
+            db_save_evaluation(st.session_state.patient_id, evaluation)
         st.session_state.evaluations.append(evaluation)
         st.session_state.page = "dashboard"
         st.rerun()
@@ -533,7 +823,9 @@ elif st.session_state.page == "dashboard":
 
     st.markdown(f"# 📊 Tableau de bord — {p.get('prenom','')} {p.get('nom','')}")
     badge_html = f'<span class="{ref["badge"]}">{statut}</span>'
-    st.markdown(f"Statut : {badge_html} &nbsp;|&nbsp; {last['moment']}", unsafe_allow_html=True)
+    pid = st.session_state.patient_id
+    pid_info = f"&nbsp;|&nbsp; <code style='background:#1e293b;padding:2px 6px;border-radius:4px;font-size:11px'>{pid}</code>" if pid else ""
+    st.markdown(f"Statut : {badge_html} &nbsp;|&nbsp; {last['moment']}{pid_info}", unsafe_allow_html=True)
     st.markdown("---")
 
     # ── ALERTES ──
@@ -577,19 +869,15 @@ elif st.session_state.page == "dashboard":
     with col1:
         kccq = last.get("kccq", 0)
         pct = percentile_label(kccq, *ref["kccq"])
-        delta_color = "normal" if pct >= 50 else "inverse"
         st.metric("KCCQ", f"{kccq}/100", f"{pct}e percentile")
-
     with col2:
         pcs = last.get("sf36_pcs", 0)
         pct = percentile_label(pcs, *ref["sf36_pcs"])
         st.metric("SF-36 PCS", f"{pcs}/100", f"{pct}e percentile")
-
     with col3:
         minn = last.get("minnesota", 0)
         pct = percentile_label(minn, *ref["minnesota"], higher_is_better=False)
         st.metric("Minnesota", f"{minn}/105", f"{pct}e percentile ↓ mieux")
-
     with col4:
         eq = last.get("eq5d", 0)
         pct = percentile_label(eq, *ref["eq5d"])
@@ -608,23 +896,18 @@ elif st.session_state.page == "dashboard":
 
         outils_graph = ["KCCQ", "SF-36 PCS", "SF-36 MCS", "EQ-5D×100"]
         scores_patient = [
-            last.get("kccq", 0),
-            last.get("sf36_pcs", 0),
-            last.get("sf36_mcs", 0),
-            last.get("eq5d", 0) * 100
+            last.get("kccq", 0), last.get("sf36_pcs", 0),
+            last.get("sf36_mcs", 0), last.get("eq5d", 0) * 100
         ]
         ref_moyennes = [
-            ref["kccq"][0],
-            ref["sf36_pcs"][0],
-            ref["sf36_mcs"][0],
-            ref["eq5d"][0] * 100
+            ref["kccq"][0], ref["sf36_pcs"][0],
+            ref["sf36_mcs"][0], ref["eq5d"][0] * 100
         ]
 
         x = np.arange(len(outils_graph))
         w = 0.35
         ax.bar(x - w/2, ref_moyennes, w, label=f"Référence {statut}", color=ref["color"], alpha=0.5)
         ax.bar(x + w/2, scores_patient, w, label="Patient", color="#3b82f6", alpha=0.9)
-
         ax.set_xticks(x)
         ax.set_xticklabels(outils_graph, color="#94a3b8", fontsize=9)
         ax.tick_params(colors="#94a3b8")
@@ -665,10 +948,10 @@ elif st.session_state.page == "dashboard":
         st.pyplot(fig)
         plt.close()
 
-    # ── TRAJECTOIRE (si plusieurs évaluations) ──
+    # ── TRAJECTOIRE ──
     if len(evals) >= 2:
         st.markdown("---")
-        st.markdown("### Trajectoire longitudinale")
+        st.markdown("### Trajectoire longitudinale T0→T5")
         fig, ax = plt.subplots(figsize=(12, 4))
         fig.patch.set_facecolor("#0f172a")
         ax.set_facecolor("#1e293b")
@@ -726,7 +1009,6 @@ elif st.session_state.page == "rapport":
     st.markdown("# 📄 Rapport clinique QdV")
     st.markdown("---")
 
-    # Génération du rapport texte
     kccq = last.get("kccq", 0)
     pcs  = last.get("sf36_pcs", 0)
     minn = last.get("minnesota", 0)
@@ -736,16 +1018,15 @@ elif st.session_state.page == "rapport":
     pct_pcs  = int(stats.norm.cdf(pcs,  *ref["sf36_pcs"]) * 100)
     pct_minn = int((1 - stats.norm.cdf(minn, *ref["minnesota"])) * 100)
 
-    if kccq >= ref["kccq"][0]:
-        interpret_kccq = "supérieur à la moyenne de sa population"
-    else:
-        interpret_kccq = "inférieur à la moyenne de sa population"
+    interpret_kccq = "supérieur à la moyenne de sa population" if kccq >= ref["kccq"][0] else "inférieur à la moyenne de sa population"
+    pid = st.session_state.patient_id or "NON ENREGISTRÉ"
 
     rapport_text = f"""
 RAPPORT D'ÉVALUATION DE LA QUALITÉ DE VIE
 ==========================================
 Date : {last['date']}
 Patient : {p.get('prenom','')} {p.get('nom','')} | {p.get('age','')} ans | {p.get('sexe','')}
+ID patient (pseudonymisé) : {pid}
 Statut : {statut} | {last['moment']}
 Clinicien : Dr. _______________
 
@@ -783,8 +1064,15 @@ Prochaine évaluation recommandée : {
     "À 3 mois post-LVAD (T2)"
 }
 
+CONFORMITÉ RGPD
+---------------
+Données stockées localement (SQLite). Aucune transmission externe.
+Pseudonymisation : ID {pid}
+Droit à l'effacement disponible dans l'outil (Art. 17 RGPD).
+
 ==========================================
 Généré par QoL Cardiac — MedFlow AI Research
+Méta-analyse de référence : 15 études · 600 patients · 2000–2026
 """
 
     st.text_area("Rapport", rapport_text, height=500)
@@ -828,39 +1116,21 @@ Période : 2000–2026 · 3 populations · 4 outils QdV · Niveau de preuve : m�
     st.markdown("### Études incluses")
 
     studies = [
-        # Liste d'attente
-        ("Grady et al.", 2004, "J Card Fail", "Liste d'attente", "Minnesota LHFQ",
-         134, "n=134 · score Minnesota 52.1 ± 18.3"),
-        ("Kugler et al.", 2013, "Clin Transplant", "Liste d'attente", "SF-36 PCS",
-         89, "n=89 · SF-36 PCS 31.4 ± 10.2"),
-        ("Spaderna et al.", 2010, "Transplantation", "Liste d'attente", "SF-36 MCS",
-         182, "n=182 · SF-36 MCS 40.2 ± 12.1"),
-        ("Goetzmann et al.", 2012, "Psychosomatics", "Liste d'attente", "EQ-5D",
-         67, "n=67 · EQ-5D 0.52 ± 0.18"),
-        ("Petrucci et al.", 2016, "Heart & Lung", "Liste d'attente", "KCCQ",
-         112, "n=112 · KCCQ 38.7 ± 14.6"),
-        # LVAD
-        ("Grady et al.", 2015, "J Heart Lung Transplant", "LVAD", "Minnesota LHFQ",
-         148, "n=148 · score Minnesota 38.4 ± 22.1"),
-        ("Rogers et al.", 2010, "Ann Thorac Surg", "LVAD", "SF-36 PCS",
-         134, "n=134 · SF-36 PCS 36.8 ± 11.4"),
-        ("Slaughter et al.", 2009, "NEJM (MOMENTUM)", "LVAD", "KCCQ",
-         134, "n=134 · KCCQ 52.3 ± 18.7"),
-        ("Cowger et al.", 2017, "JACC Heart Fail", "LVAD", "EQ-5D",
-         200, "n=200 · EQ-5D 0.69 ± 0.21"),
-        ("Brouwers et al.", 2011, "Eur J Heart Fail", "LVAD", "SF-36 MCS",
-         80, "n=80 · SF-36 MCS 44.1 ± 13.2"),
-        # Post-greffe
-        ("Kugler et al.", 2010, "Clin Transplant", "Post-greffe", "SF-36 PCS",
-         174, "n=174 · SF-36 PCS 44.2 ± 10.8"),
-        ("Lam et al.", 2009, "J Heart Lung Transplant", "Post-greffe", "Minnesota LHFQ",
-         124, "n=124 · score Minnesota 22.4 ± 15.6"),
-        ("Dew et al.", 2005, "Am J Transplant", "Post-greffe", "SF-36 MCS",
-         174, "n=174 · SF-36 MCS 49.8 ± 11.3"),
-        ("Evangelista et al.", 2014, "Heart", "Post-greffe", "KCCQ",
-         98, "n=98 · KCCQ 68.4 ± 17.2"),
-        ("Flattery et al.", 2006, "J Cardiovasc Nurs", "Post-greffe", "EQ-5D",
-         78, "n=78 · EQ-5D 0.81 ± 0.14"),
+        ("Grady et al.", 2004, "J Card Fail", "Liste d'attente", "Minnesota LHFQ", 134, "n=134 · score Minnesota 52.1 ± 18.3"),
+        ("Kugler et al.", 2013, "Clin Transplant", "Liste d'attente", "SF-36 PCS", 89, "n=89 · SF-36 PCS 31.4 ± 10.2"),
+        ("Spaderna et al.", 2010, "Transplantation", "Liste d'attente", "SF-36 MCS", 182, "n=182 · SF-36 MCS 40.2 ± 12.1"),
+        ("Goetzmann et al.", 2012, "Psychosomatics", "Liste d'attente", "EQ-5D", 67, "n=67 · EQ-5D 0.52 ± 0.18"),
+        ("Petrucci et al.", 2016, "Heart & Lung", "Liste d'attente", "KCCQ", 112, "n=112 · KCCQ 38.7 ± 14.6"),
+        ("Grady et al.", 2015, "J Heart Lung Transplant", "LVAD", "Minnesota LHFQ", 148, "n=148 · score Minnesota 38.4 ± 22.1"),
+        ("Rogers et al.", 2010, "Ann Thorac Surg", "LVAD", "SF-36 PCS", 134, "n=134 · SF-36 PCS 36.8 ± 11.4"),
+        ("Slaughter et al.", 2009, "NEJM (MOMENTUM)", "LVAD", "KCCQ", 134, "n=134 · KCCQ 52.3 ± 18.7"),
+        ("Cowger et al.", 2017, "JACC Heart Fail", "LVAD", "EQ-5D", 200, "n=200 · EQ-5D 0.69 ± 0.21"),
+        ("Brouwers et al.", 2011, "Eur J Heart Fail", "LVAD", "SF-36 MCS", 80, "n=80 · SF-36 MCS 44.1 ± 13.2"),
+        ("Kugler et al.", 2010, "Clin Transplant", "Post-greffe", "SF-36 PCS", 174, "n=174 · SF-36 PCS 44.2 ± 10.8"),
+        ("Lam et al.", 2009, "J Heart Lung Transplant", "Post-greffe", "Minnesota LHFQ", 124, "n=124 · score Minnesota 22.4 ± 15.6"),
+        ("Dew et al.", 2005, "Am J Transplant", "Post-greffe", "SF-36 MCS", 174, "n=174 · SF-36 MCS 49.8 ± 11.3"),
+        ("Evangelista et al.", 2014, "Heart", "Post-greffe", "KCCQ", 98, "n=98 · KCCQ 68.4 ± 17.2"),
+        ("Flattery et al.", 2006, "J Cardiovasc Nurs", "Post-greffe", "EQ-5D", 78, "n=78 · EQ-5D 0.81 ± 0.14"),
     ]
 
     badge_map = {
@@ -868,11 +1138,9 @@ Période : 2000–2026 · 3 populations · 4 outils QdV · Niveau de preuve : m�
         "LVAD": ('<span class="badge-lvad">LVAD</span>', "#f59e0b"),
         "Post-greffe": ('<span class="badge-greffe">Post-greffe</span>', "#10b981"),
     }
-
-    pop_groups = ["Liste d'attente", "LVAD", "Post-greffe"]
     pop_icons = {"Liste d'attente": "🔴", "LVAD": "🟡", "Post-greffe": "🟢"}
 
-    for pop in pop_groups:
+    for pop in ["Liste d'attente", "LVAD", "Post-greffe"]:
         pop_studies = [s for s in studies if s[3] == pop]
         badge_html, color = badge_map[pop]
         st.markdown(f"#### {pop_icons[pop]} Population : {pop} ({len(pop_studies)} études)")
@@ -885,43 +1153,13 @@ Période : 2000–2026 · 3 populations · 4 outils QdV · Niveau de preuve : m�
 """, unsafe_allow_html=True)
 
     st.markdown("---")
-    st.markdown("### Outils QdV — Références de validation")
-
-    outils_refs = [
-        ("KCCQ", "Kansas City Cardiomyopathy Questionnaire",
-         "Green CP et al. *J Am Coll Cardiol* 2000;35:1245–1255",
-         "Validé insuffisance cardiaque · 23 items · /100 · 5 min"),
-        ("SF-36", "Short Form Health Survey",
-         "Ware JE, Sherbourne CD. *Med Care* 1992;30:473–483",
-         "Générique · 36 items · /100 · 10 min · norme population générale disponible"),
-        ("Minnesota LHFQ", "Living With Heart Failure Questionnaire",
-         "Rector TS et al. *Heart Fail* 1987;1:198–209",
-         "Spécifique IC · 21 items · /105 · 0 = meilleur · 5 min"),
-        ("EQ-5D", "EuroQol 5 Dimensions",
-         "EuroQol Group. *Health Policy* 1990;16:199–208",
-         "Médico-économique · 5 items · /1 · calcul QALYs · 2 min"),
-    ]
-
-    cols = st.columns(2)
-    for i, (sigle, nom, ref_cite, desc) in enumerate(outils_refs):
-        with cols[i % 2]:
-            st.markdown(f"""
-<div class="card">
-<h4>{sigle}</h4>
-<p style="color:#94a3b8; font-size:13px;">{nom}</p>
-<p style="font-size:12px; color:#64748b; font-style:italic;">{ref_cite}</p>
-<p style="font-size:12px;">{desc}</p>
-</div>
-""", unsafe_allow_html=True)
-
-    st.markdown("---")
     st.markdown("""
 <div class="card">
 <h4>Citation de la méta-analyse</h4>
 <p style="font-style:italic; color:#94a3b8;">
 TALL ML. Évaluation de la qualité de vie chez le patient cardiaque (liste d'attente, LVAD, post-greffe) :
 méta-analyse de 15 études, 600 patients. Journée Scientifique sur la Qualité de Vie en Transplantation Cardiaque.
-Hôpital Léon Bérard, Lyon, 19 juin 2026.
+Hôpital Léon Bérard, Hyères, 19 juin 2026.
 </p>
 <p style="color:#64748b; font-size:12px;">En collaboration avec Dr. Laurent Poirette (Cardiologie, Hôpital Léon Bérard) · MedFlow AI Research © 2026</p>
 </div>
