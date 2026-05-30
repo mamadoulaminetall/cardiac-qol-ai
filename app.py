@@ -20,7 +20,7 @@ st.set_page_config(
     page_title="QoL Cardiac — MedFlow AI",
     page_icon="🫀",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
 # ─────────────────────────────────────────────
@@ -28,12 +28,51 @@ st.set_page_config(
 # ─────────────────────────────────────────────
 st.markdown("""
 <style>
+/* ── Reset & Base ── */
 [data-testid="stAppViewContainer"] { background-color: #0f172a; }
-[data-testid="stSidebar"] { background-color: #1e293b; }
-[data-testid="stHeader"] { background-color: #0f172a; }
+[data-testid="stSidebar"] { display:none; }
+[data-testid="stHeader"] { display:none; }
+[data-testid="collapsedControl"] { display:none; }
+section[data-testid="stMain"] > div:first-child { padding-top: 0 !important; }
+.block-container { padding-top: 0 !important; max-width: 1200px; }
 h1, h2, h3, h4 { color: #f1f5f9 !important; }
 p, li, label { color: #cbd5e1 !important; }
 .stSelectbox label, .stSlider label, .stNumberInput label { color: #94a3b8 !important; }
+
+/* ── Top Header ── */
+.qol-header { background:linear-gradient(135deg,#1a0208 0%,#2d0614 50%,#1a0208 100%);
+    border-bottom:1px solid rgba(251,113,133,0.2);
+    padding:12px 32px; display:flex; align-items:center; justify-content:space-between;
+    margin:-1rem -1rem 0 -1rem; }
+.qol-header-brand { display:flex; align-items:center; gap:10px; }
+.qol-header-title { font-size:1.1rem; font-weight:900; color:#f1f5f9; }
+.qol-header-sub   { font-size:0.68rem; color:#64748b; margin-top:1px; }
+.qol-header-badge { background:rgba(16,185,129,.1); border:1px solid rgba(16,185,129,.3);
+    color:#4ade80; padding:4px 14px; border-radius:20px; font-size:0.72rem; font-weight:700; }
+
+/* ── Trial bar ── */
+.qol-trial { background:rgba(0,0,0,0.3); border-bottom:1px solid rgba(255,255,255,0.05);
+    padding:6px 32px; text-align:right; font-size:0.7rem; color:#475569;
+    margin:0 -1rem; }
+.qol-trial span { color:#fb7185; font-weight:700; }
+
+/* ── Top Navigation ── */
+.qol-nav { display:flex; gap:0; border-bottom:2px solid rgba(255,255,255,0.06);
+    margin:0 -1rem 1.5rem -1rem; padding:0 32px; background:rgba(0,0,0,0.2); }
+.qol-nav-btn { padding:10px 18px; font-size:0.82rem; font-weight:600; color:#64748b;
+    border:none; background:transparent; cursor:pointer; border-bottom:2px solid transparent;
+    margin-bottom:-2px; transition:all .2s; white-space:nowrap; }
+.qol-nav-btn:hover { color:#e2e8f0; }
+.qol-nav-btn.active { color:#fb7185; border-bottom:2px solid #fb7185; }
+/* Override Streamlit button styles inside nav */
+.qol-nav-wrap [data-testid="stButton"] button {
+    padding:10px 16px; font-size:0.82rem; font-weight:600; color:#64748b;
+    border:none; border-radius:0; background:transparent !important;
+    border-bottom:2px solid transparent; margin-bottom:-2px; box-shadow:none !important; }
+.qol-nav-wrap [data-testid="stButton"] button:hover { color:#e2e8f0; background:transparent !important; }
+
+/* ── Expander badge styling ── */
+details summary p { display:flex; align-items:center; gap:8px; }
 div[data-testid="metric-container"] {
     background: #1e293b; border-radius: 12px; padding: 16px;
     border: 1px solid #334155;
@@ -389,61 +428,62 @@ DEMO_PATIENTS = {
 }
 
 # ─────────────────────────────────────────────
-# SIDEBAR NAVIGATION
 # ─────────────────────────────────────────────
-with st.sidebar:
-    st.markdown("## 🫀 QoL Cardiac")
-    st.markdown("*Évaluation de la qualité de vie*")
-    user_label = USER_LABELS.get(st.session_state.current_user, st.session_state.current_user)
-    st.markdown(f"<p style='color:#64748b; font-size:12px; margin:0;'>Connecté : {user_label}</p>", unsafe_allow_html=True)
-    if st.button("Déconnexion", use_container_width=True, type="secondary"):
-        st.session_state.authenticated = False
-        st.session_state.current_user = None
-        st.rerun()
-    st.markdown("---")
+# HEADER + TOP NAVIGATION
+# ─────────────────────────────────────────────
+user_label = USER_LABELS.get(st.session_state.current_user, st.session_state.current_user)
+np_, ne_ = db_count()
 
-    pages = {
-        "🏠 Accueil": "accueil",
-        "🗂️ Mes patients": "patients",
-        "👤 Nouveau patient": "patient",
-        "📋 Questionnaires": "questionnaires",
-        "📊 Tableau de bord": "dashboard",
-        "📄 Rapport PDF": "rapport",
-        "📚 Références": "references",
-    }
+# ── Header ──
+st.markdown(f"""
+<div class="qol-header">
+  <div class="qol-header-brand">
+    <span style="font-size:1.6rem;">🫀</span>
+    <div>
+      <div class="qol-header-title">QoL Cardiac</div>
+      <div class="qol-header-sub">Qualité de vie cardiaque · 4 questionnaires · 600 patients</div>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:12px;">
+    <span style="color:#475569;font-size:0.7rem;">{user_label}</span>
+    <span class="qol-header-badge">Gratuit</span>
+  </div>
+</div>
+<div class="qol-trial">Accès gratuit · <span>{ne_} évaluation(s)</span> enregistrée(s) · {np_} patient(s) · 🔒 100% local</div>
+""", unsafe_allow_html=True)
 
-    for label, key in pages.items():
+# ── Navigation ──
+nav_items = [
+    ("🏠 Accueil",          "accueil"),
+    ("👤 Patient",           "patient"),
+    ("🗂️ Patients",         "patients"),
+    ("📋 Questionnaires",   "questionnaires"),
+    ("📊 Tableau de bord",  "dashboard"),
+    ("📄 Rapport",          "rapport"),
+    ("📚 Références",       "references"),
+]
+
+nav_cols = st.columns(len(nav_items) + 1)
+for i, (label, key) in enumerate(nav_items):
+    with nav_cols[i]:
         active = st.session_state.page == key
-        if st.button(label, use_container_width=True,
+        style = ("color:#fb7185;border-bottom:2px solid #fb7185;background:transparent;"
+                 "border-top:none;border-left:none;border-right:none;border-radius:0;"
+                 "padding:8px 4px;font-weight:700;width:100%;font-size:0.78rem;") if active else (
+                "color:#64748b;border:none;background:transparent;border-radius:0;"
+                "padding:8px 4px;font-weight:500;width:100%;font-size:0.78rem;")
+        if st.button(label, key=f"nav_{key}", use_container_width=True,
                      type="primary" if active else "secondary"):
             st.session_state.page = key
             st.rerun()
 
-    st.markdown("---")
+with nav_cols[-1]:
+    if st.button("⏻ Déconnexion", key="nav_logout", use_container_width=True, type="secondary"):
+        st.session_state.authenticated = False
+        st.session_state.current_user = None
+        st.rerun()
 
-    # Patient actif
-    if st.session_state.patient:
-        p = st.session_state.patient
-        badge = {"Liste d'attente": "🔴", "LVAD": "🟡", "Post-greffe": "🟢"}
-        st.markdown(f"**Patient actif**")
-        st.markdown(f"*{p.get('prenom', '')} {p.get('nom', '')}*")
-        st.markdown(f"{badge.get(p.get('statut',''), '')} {p.get('statut', '')}")
-        pid = st.session_state.patient_id
-        if pid:
-            st.caption(f"ID : `{pid}`")
-        evals = st.session_state.evaluations
-        st.caption(f"{len(evals)} évaluation(s) enregistrée(s)")
-
-    st.markdown("---")
-
-    # Stats base
-    np_, ne_ = db_count()
-    st.metric("Patients enregistrés", np_)
-    st.metric("Évaluations totales", ne_)
-
-    st.markdown("---")
-    st.caption("MedFlow AI Research © 2026")
-    st.caption("🔒 SQLite local · RGPD Art. 9")
+st.markdown("<hr style='margin:0 0 1rem 0;border-color:rgba(255,255,255,0.06);'>", unsafe_allow_html=True)
 
 # ─────────────────────────────────────────────
 # PAGE ACCUEIL
@@ -833,15 +873,14 @@ elif st.session_state.page == "questionnaires":
     def reco(key):
         return any(key.lower() in o.lower() for o in outils)
 
-    def reco_badge(is_rec):
-        if is_rec:
-            return '<span style="background:rgba(16,185,129,0.12);border:1px solid rgba(16,185,129,0.35);color:#4ade80;padding:3px 11px;border-radius:20px;font-size:12px;font-weight:700;">✓ Recommandé</span>'
-        return '<span style="background:rgba(100,116,139,0.12);border:1px solid rgba(100,116,139,0.3);color:#64748b;padding:3px 11px;border-radius:20px;font-size:12px;font-weight:600;">Non prioritaire</span>'
-
     kccq_rec = reco("KCCQ")
     sf36_rec = reco("SF-36")
     minn_rec = reco("Minnesota")
     eq5d_rec = reco("EQ-5D")
+
+    def exp_title(icon, name, rec):
+        badge = "  ✓ Recommandé" if rec else "  Non prioritaire"
+        return f"{icon} {name}{badge}"
 
     st.markdown(f"**Outils recommandés pour ce statut :** {' · '.join(outils)}")
     st.markdown("")
@@ -849,10 +888,7 @@ elif st.session_state.page == "questionnaires":
     scores = {}
 
     # ── KCCQ ──
-    with st.expander(f"📊 KCCQ — Kansas City Cardiomyopathy Questionnaire (/100)", expanded=kccq_rec):
-        col_badge, _ = st.columns([1, 4])
-        with col_badge:
-            st.markdown(reco_badge(kccq_rec), unsafe_allow_html=True)
+    with st.expander(exp_title("📊", "KCCQ — Kansas City Cardiomyopathy Questionnaire (/100)", kccq_rec), expanded=kccq_rec):
         st.caption("23 questions · 5 min · Score élevé = meilleure QdV")
         col1, col2 = st.columns(2)
         with col1:
@@ -868,10 +904,7 @@ elif st.session_state.page == "questionnaires":
         st.markdown(f"**Score KCCQ : {scores['kccq']}/100** — Percentile {pct}e pour {statut}")
 
     # ── SF-36 ──
-    with st.expander(f"🏃 SF-36 — Short Form-36 (/100)", expanded=sf36_rec):
-        col_badge, _ = st.columns([1, 4])
-        with col_badge:
-            st.markdown(reco_badge(sf36_rec), unsafe_allow_html=True)
+    with st.expander(exp_title("🏃", "SF-36 — Short Form-36 (/100)", sf36_rec), expanded=sf36_rec):
         st.caption("36 questions · 10 min · Score élevé = meilleure QdV")
         col1, col2 = st.columns(2)
         with col1:
@@ -887,10 +920,7 @@ elif st.session_state.page == "questionnaires":
         st.markdown(f"**SF-36 PCS : {pcs}/100** (percentile {pct_pcs}e) &nbsp;|&nbsp; **MCS : {mcs}/100** (percentile {pct_mcs}e)")
 
     # ── MINNESOTA ──
-    with st.expander(f"❤️ Minnesota LHFQ — Living with Heart Failure Questionnaire (/105)", expanded=minn_rec):
-        col_badge, _ = st.columns([1, 4])
-        with col_badge:
-            st.markdown(reco_badge(minn_rec), unsafe_allow_html=True)
+    with st.expander(exp_title("❤️", "Minnesota LHFQ — Living with Heart Failure Questionnaire (/105)", minn_rec), expanded=minn_rec):
         st.caption("21 questions · 5 min · Score bas = meilleure QdV (0 = parfait)")
         col1, col2 = st.columns(2)
         with col1:
@@ -901,14 +931,15 @@ elif st.session_state.page == "questionnaires":
         scores["minnesota"] = minn_phys + minn_emot + minn_autre
         m, sd = ref["minnesota"]
         pct = round((1 - stats.norm.cdf(scores["minnesota"], m, sd)) * 100)
+        if not minn_rec:
+            st.info("Non prioritaire pour ce statut — score pris en compte si renseigné.")
         st.markdown(f"**Score Minnesota : {scores['minnesota']}/105** — Percentile {pct}e pour {statut} *(0=meilleur)*")
 
     # ── EQ-5D ──
-    with st.expander(f"🌡️ EQ-5D — EuroQol 5 Dimensions (/1)", expanded=eq5d_rec):
-        col_badge, _ = st.columns([1, 4])
-        with col_badge:
-            st.markdown(reco_badge(eq5d_rec), unsafe_allow_html=True)
+    with st.expander(exp_title("🌡️", "EQ-5D — EuroQol 5 Dimensions (/1)", eq5d_rec), expanded=eq5d_rec):
         st.caption("5 questions · 2 min · Score élevé = meilleure QdV")
+        if not eq5d_rec:
+            st.info("Non prioritaire pour ce statut — utile si étude pharmaco-économique (calcul QALYs).")
         col1, col2 = st.columns(2)
         with col1:
             eq_mob   = st.select_slider("Mobilité", [1,2,3], 2)
