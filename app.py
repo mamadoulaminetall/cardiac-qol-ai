@@ -57,6 +57,59 @@ div[data-testid="metric-container"] {
 """, unsafe_allow_html=True)
 
 # ─────────────────────────────────────────────
+# AUTHENTIFICATION
+# ─────────────────────────────────────────────
+USERS = {
+    "admin":    "01d1c301414e623552058e3fdd3c0b77df9d591533c39ebb2fa6c3d901ec86ce",  # MedFlow2026!
+    "demo":     "43c27b4e263fa191a6a7ec198cd4d5b47d17413c49d77dc533a01720707e3202",  # demo2026
+    "poirette": "2e68a3ab6888456228888db5089d0ed9d3698ae3a488975226a7851516049aa4",  # QoLCardiac2026
+    "stolpe":   "2e68a3ab6888456228888db5089d0ed9d3698ae3a488975226a7851516049aa4",  # QoLCardiac2026
+}
+
+USER_LABELS = {
+    "admin":    "Administrateur — MedFlow AI",
+    "demo":     "Démo",
+    "poirette": "Dr. Laurent Poirette — HLB Hyères",
+    "stolpe":   "Dr. Stolpe — La Timone, Marseille",
+}
+
+def hash_pwd(pwd: str) -> str:
+    return hashlib.sha256(pwd.encode()).hexdigest()
+
+def show_login():
+    st.markdown("""
+    <div style='max-width:420px; margin:80px auto 0 auto;'>
+      <div style='text-align:center; margin-bottom:32px;'>
+        <div style='font-size:48px;'>🫀</div>
+        <h1 style='color:#f1f5f9; font-size:28px; margin:8px 0 4px;'>QoL Cardiac</h1>
+        <p style='color:#64748b; font-size:14px; margin:0;'>MedFlow AI — Accès sécurisé</p>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        with st.form("login_form"):
+            username = st.text_input("Identifiant", placeholder="ex: poirette")
+            password = st.text_input("Mot de passe", type="password")
+            submitted = st.form_submit_button("Connexion", use_container_width=True)
+
+            if submitted:
+                if username in USERS and USERS[username] == hash_pwd(password):
+                    st.session_state.authenticated = True
+                    st.session_state.current_user = username
+                    st.rerun()
+                else:
+                    st.error("Identifiant ou mot de passe incorrect.")
+
+        st.markdown("""
+        <p style='text-align:center; color:#475569; font-size:12px; margin-top:24px;'>
+        Accès réservé aux professionnels de santé autorisés<br>
+        Données patients — Conformité RGPD
+        </p>
+        """, unsafe_allow_html=True)
+
+# ─────────────────────────────────────────────
 # RÉFÉRENCES MÉTA-ANALYSE (600 patients)
 # ─────────────────────────────────────────────
 REF = {
@@ -209,6 +262,15 @@ def db_count():
 # ─────────────────────────────────────────────
 # SESSION STATE
 # ─────────────────────────────────────────────
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+if "current_user" not in st.session_state:
+    st.session_state.current_user = None
+
+if not st.session_state.authenticated:
+    show_login()
+    st.stop()
+
 if "evaluations" not in st.session_state:
     st.session_state.evaluations = []
 if "patient" not in st.session_state:
@@ -288,6 +350,12 @@ DEMO_PATIENTS = {
 with st.sidebar:
     st.markdown("## 🫀 QoL Cardiac")
     st.markdown("*Évaluation de la qualité de vie*")
+    user_label = USER_LABELS.get(st.session_state.current_user, st.session_state.current_user)
+    st.markdown(f"<p style='color:#64748b; font-size:12px; margin:0;'>Connecté : {user_label}</p>", unsafe_allow_html=True)
+    if st.button("Déconnexion", use_container_width=True, type="secondary"):
+        st.session_state.authenticated = False
+        st.session_state.current_user = None
+        st.rerun()
     st.markdown("---")
 
     pages = {
