@@ -213,7 +213,6 @@ except Exception:
 
 USER_LABELS = {
     "admin": "Administrateur — MedFlow AI",
-    "demo":  "Démo",
 }
 
 def hash_pwd(pwd: str) -> str:
