@@ -1,37 +1,5 @@
-# Base de données patients — NE JAMAIS COMMITER
-*.db
-*.db-journal
-*.db-wal
-*.db-shm
-
-# Streamlit secrets
-.streamlit/secrets.toml
-
-# Python
 __pycache__/
 *.pyc
-*.pyo
-*.pyd
-.Python
-*.egg-info/
-dist/
-build/
-
-# Environnement
+*.db
 .env
-.env.local
-.venv
-venv/
-
-# Fichiers backup locaux
-*_backup*.py
-*_backup*.txt
-
-# Logs
-*.log
-
-# Mac
 .DS_Store
-
-# PyInstaller
-*.spec
