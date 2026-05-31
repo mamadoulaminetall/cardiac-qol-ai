@@ -206,12 +206,10 @@ details summary p { font-weight: 600; }
 # ─────────────────────────────────────────────
 # AUTHENTIFICATION
 # ─────────────────────────────────────────────
-USERS = {
-    "admin":    "01d1c301414e623552058e3fdd3c0b77df9d591533c39ebb2fa6c3d901ec86ce",  # MedFlow2026!
-    "demo":     "43c27b4e263fa191a6a7ec198cd4d5b47d17413c49d77dc533a01720707e3202",  # demo2026
-    "poirette": "2e68a3ab6888456228888db5089d0ed9d3698ae3a488975226a7851516049aa4",  # QoLCardiac2026
-    "stolpe":   "2e68a3ab6888456228888db5089d0ed9d3698ae3a488975226a7851516049aa4",  # QoLCardiac2026
-}
+try:
+    USERS = dict(st.secrets["users"])
+except Exception:
+    USERS = {}  # Aucun accès si secrets non configurés
 
 USER_LABELS = {
     "admin":    "Administrateur — MedFlow AI",
