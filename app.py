@@ -1967,7 +1967,7 @@ elif st.session_state.page == "recherche":
     <div>
       <div style="font-size:0.68rem;font-weight:700;color:#94a3b8;letter-spacing:1px;
                   text-transform:uppercase;margin-bottom:6px;">MedFlow AI · QoL Cardiac</div>
-      <div style="font-size:1.3rem;font-weight:900;color:#f1f5f9;">🔬 Analyse de recherche</div>
+      <div style="font-size:1.3rem;font-weight:900;color:#f1f5f9;">🔬 Analyse</div>
       <div style="font-size:0.78rem;color:#64748b;margin-top:4px;">
         Meilleurs moments du parcours pour évaluer la QdV</div>
     </div>
@@ -2115,29 +2115,164 @@ elif st.session_state.page == "recherche":
             plt.tight_layout()
             st.pyplot(fig2); plt.close()
 
-        # Δ KCCQ entre T consécutifs
+        # ── ANALYSE INTRA-PATIENT PAR POPULATION (multi-instruments méta-analyse) ──
         st.markdown("""<div style="font-size:0.72rem;font-weight:700;color:#94a3b8;
-            letter-spacing:1px;text-transform:uppercase;margin:20px 0 10px;">
-            Δ KCCQ entre moments consécutifs — valeur ajoutée de chaque évaluation
+            letter-spacing:1px;text-transform:uppercase;margin:24px 0 6px;">
+            Δ intra-patient par population — moment optimal identifié
+            </div>
+            <div style="font-size:0.70rem;color:#475569;margin-bottom:16px;">
+            Outils sélectionnés par la méta-analyse · MCID par instrument · même patient entre moments consécutifs
             </div>""", unsafe_allow_html=True)
-        t_means_r = {}
-        for _t in T_ORDER:
-            _vals = df_r[(df_r['t_code']==_t) & df_r['kccq'].notna()]['kccq'].tolist()
-            if _vals: t_means_r[_t] = float(np.mean(_vals))
-        t_pres = [t for t in T_ORDER if t in t_means_r]
-        if len(t_pres) >= 2:
-            d_cols = st.columns(len(t_pres)-1)
-            for _i,(t1,t2) in enumerate(zip(t_pres[:-1], t_pres[1:])):
-                _d = t_means_r[t2] - t_means_r[t1]
-                _col = '#10b981' if _d > 0 else '#ef4444'
-                _sgn = '+' if _d > 0 else ''
-                with d_cols[_i]:
+
+        # Instruments : MCID et direction issus de la méta-analyse
+        _INSTR_CFG = {
+            'kccq':     {'label': 'KCCQ',      'mcid': 5,    'up': True,  'unit': '/100'},
+            'sf36_pcs': {'label': 'SF-36 PCS', 'mcid': 3,    'up': True,  'unit': '/100'},
+            'sf36_mcs': {'label': 'SF-36 MCS', 'mcid': 3,    'up': True,  'unit': '/100'},
+            'minnesota':{'label': 'Minnesota', 'mcid': 5,    'up': False, 'unit': '/105'},
+            'eq5d':     {'label': 'EQ-5D',     'mcid': 0.05, 'up': True,  'unit': '/1'},
+        }
+        # Outils recommandés par population (méta-analyse — Spertus 2005, Ware 2007, Rector 1993, EuroQol)
+        _POP_INSTR = {
+            "Liste d'attente": ['minnesota', 'kccq'],
+            'LVAD':            ['kccq', 'sf36_pcs'],
+            'Post-greffe':     ['sf36_pcs', 'sf36_mcs', 'kccq', 'eq5d'],
+        }
+
+        # Map patient_id → statut courant du patient
+        _pt_statut_map = {p['id']: p['statut'] for p in all_patients}
+        df_r['patient_statut'] = df_r['patient_id'].map(_pt_statut_map)
+
+        POP_CFG = {
+            "Liste d'attente": {'t_seq': ['T0','T3'],      'color': '#ef4444'},
+            'LVAD':            {'t_seq': ['T1','T2','T3'], 'color': '#f59e0b'},
+            'Post-greffe':     {'t_seq': ['T0','T4','T5'], 'color': '#10b981'},
+        }
+
+        def _mcid_rate(vals, instr_key):
+            if not vals: return 0.0
+            cfg_i = _INSTR_CFG[instr_key]
+            if cfg_i['up']:
+                return sum(v >= cfg_i['mcid'] for v in vals) / len(vals) * 100
+            else:
+                return sum(v <= -cfg_i['mcid'] for v in vals) / len(vals) * 100
+
+        def _composite_mcid(trans_data, instrs):
+            rates = [_mcid_rate(trans_data.get(i, []), i) for i in instrs if trans_data.get(i)]
+            return float(np.mean(rates)) if rates else 0.0
+
+        _summary_optimal = {}
+
+        for _pop, _cfg in POP_CFG.items():
+            _df_pop = df_r[df_r['patient_statut'] == _pop].copy()
+            if _df_pop.empty:
+                continue
+            _t_seq   = _cfg['t_seq']
+            _color   = _cfg['color']
+            _n_pop   = _df_pop['patient_id'].nunique()
+            _instrs  = _POP_INSTR.get(_pop, ['kccq'])
+
+            # Δ intra-patient par transition ET par instrument recommandé
+            # _deltas[transition][instrument] = liste de Δ float
+            _deltas = {}
+            for _pid in _df_pop['patient_id'].unique():
+                _ptraj = {}
+                for _, _row in _df_pop[_df_pop['patient_id'] == _pid].iterrows():
+                    _tc = _row['t_code']
+                    if _tc in _t_seq:
+                        _ptraj[_tc] = _row
+                for _ta, _tb in zip(_t_seq[:-1], _t_seq[1:]):
+                    _key = f"{_ta}→{_tb}"
+                    if _ta in _ptraj and _tb in _ptraj:
+                        for _instr in _instrs:
+                            _va = _ptraj[_ta].get(_instr)
+                            _vb = _ptraj[_tb].get(_instr)
+                            if pd.notna(_va) and pd.notna(_vb):
+                                _deltas.setdefault(_key, {}).setdefault(_instr, []).append(float(_vb) - float(_va))
+
+            # Header population + outils utilisés
+            _outils_lbl = ' · '.join(_INSTR_CFG[i]['label'] for i in _instrs)
+            st.markdown(f"""
+<div style="display:flex;align-items:center;gap:10px;margin:10px 0 8px;flex-wrap:wrap;">
+  <div style="background:{_color}22;border:1px solid {_color}55;border-radius:6px;
+              padding:3px 12px;font-size:0.68rem;font-weight:700;color:{_color};">
+    {_pop}</div>
+  <div style="font-size:0.70rem;color:#64748b;">{_n_pop} patient{'s' if _n_pop>1 else ''}</div>
+  <div style="font-size:0.60rem;color:#475569;font-style:italic;">Outils méta-analyse : {_outils_lbl}</div>
+</div>""", unsafe_allow_html=True)
+
+            if not _deltas:
+                st.markdown("""<div style="color:#475569;font-size:0.70rem;margin-bottom:10px;
+                    padding:8px 12px;background:#1e293b;border-radius:8px;">
+                    Données insuffisantes — 2 évaluations consécutives requises par patient
+                    </div>""", unsafe_allow_html=True)
+                continue
+
+            # Transition optimale = composite MCID le plus élevé sur les instruments recommandés
+            _best = max(_deltas, key=lambda k: _composite_mcid(_deltas[k], _instrs))
+            _best_comp = _composite_mcid(_deltas[_best], _instrs)
+            _summary_optimal[_pop] = (_best, _best_comp)
+
+            _dcols = st.columns(max(len(_deltas), 1))
+            for _ci, (_trans, _instr_data) in enumerate(_deltas.items()):
+                _is_best   = (_trans == _best)
+                _border    = f'2px solid {_color}' if _is_best else '1px solid #334155'
+                _opt_badge = (f'<div style="font-size:0.52rem;font-weight:700;'
+                              f'color:{_color};margin-bottom:4px;">▲ OPTIMAL</div>') if _is_best else ''
+                _comp      = _composite_mcid(_instr_data, _instrs)
+                _n_d       = max((len(v) for v in _instr_data.values()), default=0)
+
+                _rows_html = ''
+                for _instr in _instrs:
+                    _vals = _instr_data.get(_instr, [])
+                    if not _vals: continue
+                    _cfg_i  = _INSTR_CFG[_instr]
+                    _mean_v = float(np.mean(_vals))
+                    _sgn    = '+' if _mean_v > 0 else ''
+                    _good   = (_cfg_i['up'] and _mean_v > 0) or (not _cfg_i['up'] and _mean_v < 0)
+                    _col_v  = _color if _good else '#ef4444'
+                    _mr     = _mcid_rate(_vals, _instr)
+                    _mr_col = '#10b981' if _mr >= 50 else '#64748b'
+                    _mcid_lbl = f"MCID {'≥+' if _cfg_i['up'] else '≤−'}{_cfg_i['mcid']}"
+                    _rows_html += f"""
+  <div style="display:flex;justify-content:space-between;align-items:center;
+              padding:3px 0;border-top:1px solid #0f172a;">
+    <span style="font-size:0.54rem;color:#94a3b8;min-width:64px;">{_cfg_i['label']}</span>
+    <span style="font-size:0.70rem;font-weight:700;color:{_col_v};">{_sgn}{_mean_v:.1f}</span>
+    <span style="font-size:0.52rem;color:{_mr_col};">{_mcid_lbl}: {_mr:.0f}%</span>
+  </div>"""
+
+                with _dcols[_ci]:
                     st.markdown(f"""
-<div style="background:#1e293b;border:1px solid #334155;border-radius:10px;
-            padding:12px 8px;text-align:center;">
-  <div style="font-size:0.62rem;color:#64748b;">{t1} → {t2}</div>
-  <div style="font-size:1.4rem;font-weight:900;color:{_col};">{_sgn}{_d:.1f}</div>
-  <div style="font-size:0.6rem;color:#94a3b8;">pts KCCQ</div>
+<div style="background:#1e293b;border:{_border};border-radius:10px;
+            padding:10px 8px;margin-bottom:4px;">
+  <div style="text-align:center;">{_opt_badge}
+    <div style="font-size:0.60rem;color:#64748b;">{_trans} · n={_n_d}</div>
+    <div style="font-size:0.65rem;font-weight:700;
+                color:{'#10b981' if _comp>=50 else '#64748b'};margin:3px 0;">
+      Composite MCID : {_comp:.0f}%</div>
+  </div>
+  {_rows_html}
+</div>""", unsafe_allow_html=True)
+
+        # Conclusion algorithmique
+        if _summary_optimal:
+            _conc_parts = []
+            for _pop, (_trans, _comp) in _summary_optimal.items():
+                _t_opt = _trans.split('→')[1]
+                _pc    = POP_CFG[_pop]['color']
+                _conc_parts.append(
+                    f"<span style='color:{_pc};font-weight:700;'>{_pop} → {_t_opt}</span>"
+                    f" ({_trans} · composite {_comp:.0f}%)")
+            _conc_str = "  ·  ".join(_conc_parts)
+            st.markdown(f"""
+<div style="background:#0f172a;border:1px solid #334155;border-radius:10px;
+            padding:12px 16px;margin-top:12px;">
+  <div style="font-size:0.62rem;font-weight:700;color:#94a3b8;letter-spacing:1px;
+              text-transform:uppercase;margin-bottom:6px;">Conclusion algorithmique</div>
+  <div style="font-size:0.72rem;color:#e2e8f0;line-height:1.8;">
+    Moment optimal identifié : {_conc_str}
+  </div>
 </div>""", unsafe_allow_html=True)
 
     # Export CSV recherche
@@ -2164,7 +2299,7 @@ elif st.session_state.page == "recherche":
         st.markdown(f"""
 <div style="background:#1e293b;border:1px solid #334155;border-radius:12px;padding:16px 20px;">
   <div style="font-size:0.78rem;font-weight:700;color:#e2e8f0;margin-bottom:4px;">
-    📦 Export recherche — données anonymisées</div>
+    📦 Export analyse — données anonymisées</div>
   <div style="font-size:0.72rem;color:#64748b;line-height:1.6;">
     {n_pts} patients · {n_evs} évaluations · patient_id pseudonyme · statut · moment T ·
     KCCQ · SF-36 · Minnesota · EQ-5D · 6MWT · BNP · LVEF<br>
@@ -2173,8 +2308,8 @@ elif st.session_state.page == "recherche":
 </div>""", unsafe_allow_html=True)
     with _ec2:
         from datetime import date as _date_cls
-        st.download_button("📊 Export CSV recherche", csv_all,
-            file_name=f"qol_cardiac_recherche_{_date_cls.today().isoformat()}.csv",
+        st.download_button("📊 Export CSV analyse", csv_all,
+            file_name=f"qol_cardiac_analyse_{_date_cls.today().isoformat()}.csv",
             mime="text/csv", use_container_width=True, type="primary")
 
 # ─────────────────────────────────────────────
