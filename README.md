@@ -1,6 +1,6 @@
 # 🫀 Cardiac QoL AI — Quality of Life Assessment Platform
 
-[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://cardiac-qol-ai.streamlit.app)
+[![Streamlit App](https://img.shields.io/badge/Streamlit-cardiac--qol--ai-FF4B4B?logo=streamlit&logoColor=white)](https://cardiac-qol-ai.streamlit.app)
 ![Python](https://img.shields.io/badge/Python-3.9+-blue)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
