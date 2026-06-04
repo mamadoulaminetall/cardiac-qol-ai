@@ -68,22 +68,47 @@ T5 — 1 year post-Tx   ← Stabilization (long-term reference)
 ## 🚀 Features
 
 - **Auto-selects questionnaires** based on patient status
-- **Real-time percentile** vs reference cohort (600 patients, 15 published studies)
-- **Automatic degradation alert** if score drops >10 points vs previous evaluation
+- **Real-time percentile** vs reference cohort (600 patients, 15 published studies) — `scipy.stats.norm.cdf`
+- **MCID composite algorithm** — identifies the optimal assessment moment per population
+- **Automatic degradation alert** if MCID threshold crossed (KCCQ ≥5 pts · SF-36 ≥3 pts · Minnesota ≤−5 pts · EQ-5D ≥0.05)
 - **Longitudinal trajectory** T0→T5 across all evaluations
-- **Clinical report** auto-generated, exportable as .txt and .csv
+- **Clinical PDF report** auto-generated with ReportLab
 - **100% in French** — designed for French-speaking clinicians
+
+---
+
+## 🧮 MCID Composite Algorithm (🔬 Analyse page)
+
+Identifies the **optimal QoL assessment moment** per cardiac population using a composite responder score:
+
+```
+C = (1/n) × Σ rᵢ
+rᵢ = % patients with |Δᵢ| ≥ MCIDᵢ at transition Tₐ → Tₐ₊₁
+```
+
+**Simulation results (n=60 patients per population):**
+
+| Population | Optimal transition | C score | Clinical insight |
+|---|---|---|---|
+| 🔴 Waiting list | T0 → T3 | **C = 4%** | KCCQ −3.5 pts → early alert, clinical-only monitoring |
+| 🟡 LVAD | T1 → T2 | **C = 95%** | KCCQ +14.2 · SF-36 +13.3 → peak at 3 months |
+| 🟢 Post-transplant | T0 → T4 | **C = 88%** | SF-36 +26.4 · KCCQ +31.2 → peak at 3 months (9 months earlier than T5) |
+
+Population sequences: Waiting list `T0→T3` · LVAD `T1→T2→T3` · Post-transplant `T0→T4→T5`
 
 ---
 
 ## 📱 Platform Pages
 
 ```
-🏠 Home          — Overview & recommended tools by status
-👤 New Patient   — Profile + clinical parameters (NYHA, BNP, LVEF, 6MWT)
+🏠 Accueil        — Overview & recommended tools by status
+👤 Patient        — New patient profile (NYHA, BNP, LVEF, 6MWT)
+🗂️ Patients       — Patient list & search
 📋 Questionnaires — KCCQ · SF-36 · Minnesota · EQ-5D
-📊 Dashboard     — Scores · Alerts · Charts · Longitudinal trajectory
-📄 Report        — Clinical report + export
+📊 Tableau de bord — Scores · Percentiles · Alerts · Longitudinal charts
+📄 Rapport        — Clinical PDF report + CSV export
+🔬 Analyse        — MCID composite algorithm · KPI cards · Population comparison
+📚 Références     — Meta-analysis references & MCID sources
 ```
 
 ---
