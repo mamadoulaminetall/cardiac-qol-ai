@@ -18,7 +18,7 @@ import os
 from datetime import datetime
 
 st.set_page_config(
-    page_title="QoL Cardiac — MedFlow AI",
+    page_title="QoL Cardiac V2 — MedFlow AI",
     page_icon="🫀",
     layout="wide",
     initial_sidebar_state="collapsed"
@@ -252,31 +252,102 @@ def show_login():
         """, unsafe_allow_html=True)
 
 # ─────────────────────────────────────────────
-# RÉFÉRENCES MÉTA-ANALYSE (600 patients)
+# RÉFÉRENCES MÉTA-ANALYSE V2 — 54 études · N=68 421 · 2004–2026
+# Tall ML, MedFlow AI Research — Montpellier, France
+# Méthode : DerSimonian-Laird, pooling séparé par instrument (PRISMA 2020)
 # ─────────────────────────────────────────────
 REF = {
     "Liste d'attente": {
-        "kccq": (40.1, 15.4), "sf36_pcs": (30.4, 9.9),
+        "kccq": (36.3, 21.6), "sf36_pcs": (30.4, 9.9),
         "sf36_mcs": (41.5, 11.4), "minnesota": (53.6, 17.8),
-        "eq5d": (0.54, 0.18), "6mwt": (284, 85),
+        "eq5d": (0.40, 0.18), "6mwt": (284, 85),
         "bnp": (824, 387), "lvef": (24, 8),
         "color": "#ef4444", "badge": "badge-liste"
     },
     "LVAD": {
-        "kccq": (53.5, 19.8), "sf36_pcs": (37.4, 10.6),
-        "sf36_mcs": (42.7, 13.5), "minnesota": (37.6, 21.8),
-        "eq5d": (0.68, 0.21), "6mwt": (332, 87),
-        "bnp": (474, 276), "lvef": (30, 10),
+        "kccq": (66.0, 20.0), "sf36_pcs": (38.4, 10.8),
+        "sf36_mcs": (44.2, 13.2), "minnesota": (32.1, 19.4),
+        "eq5d": (0.66, 0.20), "6mwt": (345, 88),
+        "bnp": (420, 260), "lvef": (30, 10),
         "color": "#f59e0b", "badge": "badge-lvad"
     },
     "Post-greffe": {
-        "kccq": (66.7, 16.6), "sf36_pcs": (43.4, 11.2),
+        "kccq": (63.0, 18.5), "sf36_pcs": (44.0, 12.1),
         "sf36_mcs": (50.6, 10.8), "minnesota": (22.0, 15.1),
         "eq5d": (0.80, 0.13), "6mwt": (462, 104),
         "bnp": (196, 113), "lvef": (58, 8),
         "color": "#10b981", "badge": "badge-greffe"
     }
 }
+
+# ─────────────────────────────────────────────
+# TRAJECTOIRES V2 — Données poolées par timepoint (mois)
+# Format : (mois, moyenne, SD)
+# ─────────────────────────────────────────────
+TRAJECTORY = {
+    "LVAD_KCCQ": {
+        "Gen1 (pulsatile)":  [(0, 31.2, 14.1), (6, 52.3, 18.5), (24, 48.7, 20.1)],
+        "Gen2 (HM2/HVAD)":   [(0, 36.8, 19.2), (6, 63.4, 20.8), (24, 61.2, 22.0), (60, 58.3, 23.1)],
+        "Gen3 — HM3":        [(0, 36.3, 21.6), (6, 66.0, 20.0), (24, 66.4, 21.8), (36, 63.0, 22.1), (60, 65.0, 20.5)],
+    },
+    "LVAD_EQ5D_norm": {  # EQ-5D normalisé 0-100
+        "Toutes générations": [(0, 38.2, 16.0), (6, 70.7, 18.5), (24, 68.4, 20.1), (60, 64.2, 22.0)],
+    },
+    "HTx_SF36_PCS": {
+        "Post-transplant":   [(12, 38.4, 10.2), (24, 40.1, 10.8), (60, 42.3, 11.5), (132, 44.0, 12.1)],
+    },
+    "HTx_KCCQ": {
+        "Post-transplant":   [(12, 64.2, 16.8), (24, 65.1, 17.2), (60, 63.8, 18.5)],
+    },
+}
+
+# ─────────────────────────────────────────────
+# SCORE C — ALGORITHME MCID COMPOSITE V2
+# C = Σᵢ [wᵢ × I(Δsᵢ ≥ MCIDᵢ)] / Σᵢ wᵢ
+# Tall ML — Méta-analyse 2004–2026 (54 études, N=68 421)
+# ─────────────────────────────────────────────
+SCORE_C_WEIGHTS = {
+    'kccq':      0.40,   # disease-specific, le plus sensible HF
+    'sf36_pcs':  0.25,   # générique, domaine physique prioritaire
+    'sf36_mcs':  0.15,   # générique, domaine mental secondaire
+    'eq5d':      0.15,   # utility — analyses médico-économiques
+    'minnesota': 0.05,   # redondant avec KCCQ, poids réduit
+}
+SCORE_C_MCID = {
+    'kccq':      5.0,    # Green et al. J Am Coll Cardiol 2000
+    'sf36_pcs':  4.0,    # Ware et al. 1995 (midpoint 3–5)
+    'sf36_mcs':  4.0,
+    'eq5d':      0.07,   # Walters & Brazier 2005
+    'minnesota': 5.0,    # Rector & Cohn 1992 (amélioration = diminution)
+}
+
+def compute_score_c(deltas: dict) -> float:
+    """Score C MCID composite — Tall ML 2026. deltas: {instrument: Δscore}"""
+    numerator = 0.0
+    denominator = 0.0
+    for instr, weight in SCORE_C_WEIGHTS.items():
+        delta = deltas.get(instr)
+        if delta is None:
+            continue
+        mcid = SCORE_C_MCID[instr]
+        if instr == 'minnesota':
+            indicator = 1 if delta <= -mcid else 0  # amélioration = score qui baisse
+        else:
+            indicator = 1 if delta >= mcid else 0
+        numerator += weight * indicator
+        denominator += weight
+    return (numerator / denominator) if denominator > 0 else 0.0
+
+def score_c_label(c: float) -> tuple:
+    """Retourne (label, couleur) pour un Score C donné."""
+    if c >= 0.80:   return ("Réponse maximale",    "#10b981")
+    elif c >= 0.60: return ("Réponse substantielle","#4ade80")
+    elif c >= 0.40: return ("Réponse modérée",      "#f59e0b")
+    else:           return ("Réponse marginale",    "#ef4444")
+
+def eq5d_normalize(utility: float) -> float:
+    """EQ-5D utility (−0.594→1) → score normalisé 0–100."""
+    return 100.0 * (utility + 0.594) / 1.594
 
 OUTILS_RECOMMANDES = {
     "Liste d'attente": ["Minnesota LHFQ", "KCCQ"],
@@ -791,7 +862,7 @@ st.markdown(f"""
   </div>
   <div style="display:flex;align-items:center;gap:10px;">
     <span style="color:rgba(255,255,255,0.4);font-size:0.68rem;">{user_label}</span>
-    <span class="qol-header-badge">Gratuit</span>
+    <span class="qol-header-badge">V2 · 54 études · N=68 421</span>
   </div>
 </div>
 <div class="qol-trial">Accès gratuit · <span>{_trial_days} jours</span> restants (sur 90) · {ne_} évaluation(s) · 🔒 100% local</div>
@@ -1605,6 +1676,69 @@ elif st.session_state.page == "dashboard":
   </tr></thead><tbody>{traj_rows}</tbody></table>
 </div>""", unsafe_allow_html=True)
 
+    # ── V2 : TRAJECTOIRE MÉTA-ANALYSE DE RÉFÉRENCE ──
+    if statut == "LVAD":
+        traj_kccq = TRAJECTORY["LVAD_KCCQ"]
+        gen_colors = {"Gen1 (pulsatile)": "#94a3b8", "Gen2 (HM2/HVAD)": "#fb923c", "Gen3 — HM3": "#10b981"}
+        rows_gen = ""
+        for gen, pts in traj_kccq.items():
+            col = gen_colors.get(gen, "#64748b")
+            pts_str = " → ".join(f"<b style='color:{col};'>{v:.0f}</b> <span style='color:#475569;font-size:0.58rem;'>({m}mo)</span>" for m, v, _ in pts)
+            rows_gen += f"""
+<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-top:1px solid #0f172a;">
+  <span style="font-size:0.68rem;font-weight:700;color:{col};min-width:110px;">{gen}</span>
+  <span style="font-size:0.70rem;color:#94a3b8;line-height:1.6;">{pts_str}</span>
+</div>"""
+        # Score C du patient actuel
+        if len(evals) >= 2:
+            prev_e = evals[-2]
+            curr_e = evals[-1]
+            patient_deltas = {}
+            for k in ['kccq','sf36_pcs','sf36_mcs','minnesota','eq5d']:
+                v0 = prev_e.get(k); v1 = curr_e.get(k)
+                if v0 is not None and v1 is not None:
+                    patient_deltas[k] = v1 - v0
+            sc = compute_score_c(patient_deltas)
+            sc_lbl, sc_col = score_c_label(sc)
+            score_c_html = f"""
+<div style="background:{sc_col}18;border:1px solid {sc_col}44;border-radius:10px;
+            padding:12px 16px;margin-top:10px;display:flex;align-items:center;gap:14px;">
+  <div style="font-size:2rem;font-weight:900;color:{sc_col};line-height:1;">{sc:.2f}</div>
+  <div>
+    <div style="font-size:0.62rem;color:#6b7280;text-transform:uppercase;letter-spacing:1px;">Score C — MCID Composite V2</div>
+    <div style="font-size:0.88rem;font-weight:700;color:{sc_col};">{sc_lbl}</div>
+    <div style="font-size:0.60rem;color:#475569;margin-top:2px;">C = Σᵢ [wᵢ × I(Δsᵢ ≥ MCIDᵢ)] / Σᵢ wᵢ · Tall ML 2026</div>
+  </div>
+</div>"""
+        else:
+            score_c_html = '<div style="color:#475569;font-size:0.72rem;padding:8px 0;">Score C disponible dès la 2e évaluation (comparaison T0→T1).</div>'
+
+        st.markdown(f"""
+<div style="background:#1e293b;border:1px solid #334155;border-radius:12px;padding:18px 20px;margin-top:14px;">
+  <div style="font-size:0.8rem;font-weight:700;color:#e2e8f0;margin-bottom:4px;">
+    📊 Trajectoire KCCQ de référence — par génération LVAD
+    <span style="font-size:0.60rem;color:#475569;margin-left:6px;font-weight:400;">Méta-analyse V2 · 54 études · N=68 421</span>
+  </div>
+  <div style="font-size:0.62rem;color:#475569;margin-bottom:10px;">Pooling séparé par instrument · DerSimonian-Laird</div>
+  {rows_gen}
+  {score_c_html}
+</div>""", unsafe_allow_html=True)
+
+    elif statut == "Post-greffe":
+        traj_htx = TRAJECTORY["HTx_SF36_PCS"]["Post-transplant"]
+        pts_str = " → ".join(f"<b style='color:#10b981;'>{v:.1f}</b> <span style='color:#475569;font-size:0.58rem;'>({m}mo)</span>" for m, v, _ in traj_htx)
+        st.markdown(f"""
+<div style="background:#1e293b;border:1px solid #334155;border-radius:12px;padding:16px 20px;margin-top:14px;">
+  <div style="font-size:0.78rem;font-weight:700;color:#e2e8f0;margin-bottom:8px;">
+    📊 Trajectoire SF-36 PCS post-transplantation — Référence méta-analyse V2
+    <span style="font-size:0.60rem;color:#475569;margin-left:6px;font-weight:400;">N=68 421 · 2004–2026</span>
+  </div>
+  <div style="font-size:0.72rem;color:#94a3b8;">{pts_str}</div>
+  <div style="font-size:0.60rem;color:#475569;margin-top:6px;">
+    ✓ Premier outil interactif intégrant la trajectoire QdV post-HTx sur 11 ans (Grov 2024 SCHEDULE)
+  </div>
+</div>""", unsafe_allow_html=True)
+
     # ── BUTTONS ──
     st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
     col1, col2 = st.columns(2)
@@ -2126,11 +2260,11 @@ elif st.session_state.page == "recherche":
 
         # Instruments : MCID et direction issus de la méta-analyse
         _INSTR_CFG = {
-            'kccq':     {'label': 'KCCQ',      'mcid': 5,    'up': True,  'unit': '/100'},
-            'sf36_pcs': {'label': 'SF-36 PCS', 'mcid': 3,    'up': True,  'unit': '/100'},
-            'sf36_mcs': {'label': 'SF-36 MCS', 'mcid': 3,    'up': True,  'unit': '/100'},
-            'minnesota':{'label': 'Minnesota', 'mcid': 5,    'up': False, 'unit': '/105'},
-            'eq5d':     {'label': 'EQ-5D',     'mcid': 0.05, 'up': True,  'unit': '/1'},
+            'kccq':     {'label': 'KCCQ',      'mcid': SCORE_C_MCID['kccq'],     'up': True,  'unit': '/100', 'weight': SCORE_C_WEIGHTS['kccq']},
+            'sf36_pcs': {'label': 'SF-36 PCS', 'mcid': SCORE_C_MCID['sf36_pcs'], 'up': True,  'unit': '/100', 'weight': SCORE_C_WEIGHTS['sf36_pcs']},
+            'sf36_mcs': {'label': 'SF-36 MCS', 'mcid': SCORE_C_MCID['sf36_mcs'], 'up': True,  'unit': '/100', 'weight': SCORE_C_WEIGHTS['sf36_mcs']},
+            'minnesota':{'label': 'Minnesota', 'mcid': SCORE_C_MCID['minnesota'], 'up': False, 'unit': '/105', 'weight': SCORE_C_WEIGHTS['minnesota']},
+            'eq5d':     {'label': 'EQ-5D',     'mcid': SCORE_C_MCID['eq5d'],     'up': True,  'unit': '/1',   'weight': SCORE_C_WEIGHTS['eq5d']},
         }
         # Outils recommandés par population (méta-analyse — Spertus 2005, Ware 2007, Rector 1993, EuroQol)
         _POP_INSTR = {
@@ -2158,8 +2292,17 @@ elif st.session_state.page == "recherche":
                 return sum(v <= -cfg_i['mcid'] for v in vals) / len(vals) * 100
 
         def _composite_mcid(trans_data, instrs):
-            rates = [_mcid_rate(trans_data.get(i, []), i) for i in instrs if trans_data.get(i)]
-            return float(np.mean(rates)) if rates else 0.0
+            # Score C V2 — algorithme pondéré (Tall ML 2026)
+            numerator = 0.0; denominator = 0.0
+            for i in instrs:
+                vals = trans_data.get(i, [])
+                if not vals: continue
+                cfg_i = _INSTR_CFG[i]
+                w = cfg_i['weight']
+                rate = _mcid_rate(vals, i) / 100.0  # proportion 0–1
+                numerator += w * rate
+                denominator += w
+            return float(numerator / denominator * 100) if denominator > 0 else 0.0
 
         _summary_optimal = {}
 
@@ -2317,38 +2460,43 @@ elif st.session_state.page == "recherche":
 # ─────────────────────────────────────────────
 elif st.session_state.page == "references":
     st.markdown("""
-<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:20px;">
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px;">
   <div style="background:#1e293b;border-radius:12px;padding:20px 16px;border:1px solid #334155;text-align:center;">
-    <div style="font-size:2.2rem;font-weight:900;color:#60a5fa;line-height:1;">15</div>
+    <div style="font-size:2.2rem;font-weight:900;color:#60a5fa;line-height:1;">54</div>
     <div style="font-size:0.82rem;font-weight:600;color:#e2e8f0;margin-top:4px;">Études incluses</div>
-    <div style="font-size:0.72rem;color:#64748b;">Sélection PRISMA</div>
+    <div style="font-size:0.72rem;color:#64748b;">PRISMA 2020</div>
   </div>
   <div style="background:#1e293b;border-radius:12px;padding:20px 16px;border:1px solid #334155;text-align:center;">
-    <div style="font-size:2.2rem;font-weight:900;color:#34d399;line-height:1;">600</div>
+    <div style="font-size:2.2rem;font-weight:900;color:#34d399;line-height:1;">68 421</div>
     <div style="font-size:0.82rem;font-weight:600;color:#e2e8f0;margin-top:4px;">Patients</div>
     <div style="font-size:0.72rem;color:#64748b;">3 populations</div>
   </div>
   <div style="background:#1e293b;border-radius:12px;padding:20px 16px;border:1px solid #334155;text-align:center;">
-    <div style="font-size:2.2rem;font-weight:900;color:#fbbf24;line-height:1;">4</div>
-    <div style="font-size:0.82rem;font-weight:600;color:#e2e8f0;margin-top:4px;">Outils QdV</div>
-    <div style="font-size:0.72rem;color:#64748b;">2000 – 2026</div>
+    <div style="font-size:2.2rem;font-weight:900;color:#fbbf24;line-height:1;">22</div>
+    <div style="font-size:0.82rem;font-weight:600;color:#e2e8f0;margin-top:4px;">Années couvertes</div>
+    <div style="font-size:0.72rem;color:#64748b;">2004 – 2026</div>
+  </div>
+  <div style="background:#1e293b;border-radius:12px;padding:20px 16px;border:1px solid #334155;text-align:center;">
+    <div style="font-size:2.2rem;font-weight:900;color:#c084fc;line-height:1;">I²=99%</div>
+    <div style="font-size:0.82rem;font-weight:600;color:#e2e8f0;margin-top:4px;">Hétérogénéité</div>
+    <div style="font-size:0.72rem;color:#64748b;">Diversité clinique attendue</div>
   </div>
 </div>
 
 <div style="background:#1e293b;border-radius:12px;padding:18px 20px;border:1px solid #334155;border-left:4px solid #6366f1;margin-bottom:20px;">
-  <div style="font-size:0.95rem;font-weight:700;color:#e2e8f0;margin-bottom:8px;">📋 Protocole PRISMA</div>
-  <p style="color:#cbd5e1;margin:0 0 6px 0;font-size:0.85rem;">847 articles identifiés → <strong>15 études retenues</strong> après critères d'inclusion/exclusion.</p>
-  <p style="color:#94a3b8;margin:0;font-size:0.82rem;">Période : 2000–2026 · 3 populations · 4 outils QdV · Niveau de preuve : méta-analyse</p>
+  <div style="font-size:0.95rem;font-weight:700;color:#e2e8f0;margin-bottom:8px;">📋 Protocole PRISMA 2020 — Méta-analyse V2</div>
+  <p style="color:#cbd5e1;margin:0 0 6px 0;font-size:0.85rem;">506 articles identifiés (PubMed + Embase + Cochrane) → <strong>54 études retenues</strong> (195 évalués en texte intégral · 141 exclus).</p>
+  <p style="color:#94a3b8;margin:0;font-size:0.82rem;">Période : 2004–2026 · 3 populations · 4 instruments validés · Pooling séparé par instrument · Score C MCID composite</p>
 </div>
 
-<div style="font-size:1rem;font-weight:700;color:#f1f5f9;margin:0 0 14px 0;">Études incluses</div>
+<div style="font-size:1rem;font-weight:700;color:#f1f5f9;margin:0 0 14px 0;">Études clés incluses — Sélection représentative</div>
 
-<div style="color:#ef4444;font-weight:600;font-size:0.85rem;margin-bottom:10px;">🔴 Population : Liste d'attente (5 études)</div>
+<div style="color:#ef4444;font-weight:600;font-size:0.85rem;margin-bottom:10px;">🔴 Population : Liste d'attente (12 études)</div>
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px;">
   <div style="background:#1e293b;border-radius:10px;padding:12px 14px;border:1px solid #334155;border-left:4px solid #ef4444;">
-    <div style="font-weight:700;color:#e2e8f0;font-size:0.85rem;">Grady et al. (2004)</div>
-    <div style="color:#64748b;font-style:italic;font-size:0.78rem;margin:2px 0;">Heart &amp; Lung</div>
-    <div style="color:#94a3b8;font-size:0.78rem;">Cohorte · n=134 · KCCQ 38.5 ± 18.4</div>
+    <div style="font-weight:700;color:#e2e8f0;font-size:0.85rem;">Cowger et al. (2022) — INTERMACS</div>
+    <div style="color:#64748b;font-style:italic;font-size:0.78rem;margin:2px 0;">J Heart Lung Transplant</div>
+    <div style="color:#94a3b8;font-size:0.78rem;">Registre · n=14 073 · EQ-5D-5L + KCCQ-12 pré-LVAD</div>
   </div>
   <div style="background:#1e293b;border-radius:10px;padding:12px 14px;border:1px solid #334155;border-left:4px solid #ef4444;">
     <div style="font-weight:700;color:#e2e8f0;font-size:0.85rem;">Kugler et al. (2013)</div>
@@ -2372,61 +2520,61 @@ elif st.session_state.page == "references":
   </div>
 </div>
 
-<div style="color:#f59e0b;font-weight:600;font-size:0.85rem;margin-bottom:10px;">🟡 Population : LVAD (5 études)</div>
+<div style="color:#f59e0b;font-weight:600;font-size:0.85rem;margin-bottom:10px;">🟡 Population : LVAD — par génération (28 études)</div>
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px;">
   <div style="background:#1e293b;border-radius:10px;padding:12px 14px;border:1px solid #334155;border-left:4px solid #f59e0b;">
-    <div style="font-weight:700;color:#e2e8f0;font-size:0.85rem;">Grady et al. (2015)</div>
-    <div style="color:#64748b;font-style:italic;font-size:0.78rem;margin:2px 0;">J Cardiovasc Nurs.</div>
-    <div style="color:#94a3b8;font-size:0.78rem;">Cohorte · n=148 · KCCQ +18 pts à 12 mois</div>
+    <div style="font-weight:700;color:#e2e8f0;font-size:0.85rem;">Mehra et al. (2019/2022) — MOMENTUM 3</div>
+    <div style="color:#64748b;font-style:italic;font-size:0.78rem;margin:2px 0;">NEJM · Eur Heart J</div>
+    <div style="color:#94a3b8;font-size:0.78rem;">RCT · n=2 200 · KCCQ 40→66 à 6mo (Gen3 HM3)</div>
+  </div>
+  <div style="background:#1e293b;border-radius:10px;padding:12px 14px;border:1px solid #334155;border-left:4px solid #f59e0b;">
+    <div style="font-weight:700;color:#e2e8f0;font-size:0.85rem;">Kilic et al. (2023)</div>
+    <div style="color:#64748b;font-style:italic;font-size:0.78rem;margin:2px 0;">Ann Thorac Surg</div>
+    <div style="color:#94a3b8;font-size:0.78rem;">Cohorte · n=1 247 · KCCQ 28.2→64.3 à 6mo</div>
+  </div>
+  <div style="background:#1e293b;border-radius:10px;padding:12px 14px;border:1px solid #334155;border-left:4px solid #f59e0b;">
+    <div style="font-weight:700;color:#e2e8f0;font-size:0.85rem;">Schmitto et al. — ELEVATE</div>
+    <div style="color:#64748b;font-style:italic;font-size:0.78rem;margin:2px 0;">J Heart Lung Transplant</div>
+    <div style="color:#94a3b8;font-size:0.78rem;">Prospectif · EQ-5D 35→64 à 5 ans (Gen3)</div>
+  </div>
+  <div style="background:#1e293b;border-radius:10px;padding:12px 14px;border:1px solid #334155;border-left:4px solid #f59e0b;">
+    <div style="font-weight:700;color:#e2e8f0;font-size:0.85rem;">INTERMACS Registry (2022)</div>
+    <div style="color:#64748b;font-style:italic;font-size:0.78rem;margin:2px 0;">J Heart Lung Transplant</div>
+    <div style="color:#94a3b8;font-size:0.78rem;">Registre · n=22 230 · données stratifiées Gen1/2/3</div>
+  </div>
+  <div style="background:#1e293b;border-radius:10px;padding:12px 14px;border:1px solid #334155;border-left:4px solid #f59e0b;">
+    <div style="font-weight:700;color:#e2e8f0;font-size:0.85rem;">Cowger et al. (2018) — MOMENTUM 3 QoL</div>
+    <div style="color:#64748b;font-style:italic;font-size:0.78rem;margin:2px 0;">Circ Heart Fail</div>
+    <div style="color:#94a3b8;font-size:0.78rem;">RCT · n=294 · KCCQ 40→69.5 à 6mo · EQ-5D extractible</div>
   </div>
   <div style="background:#1e293b;border-radius:10px;padding:12px 14px;border:1px solid #334155;border-left:4px solid #f59e0b;">
     <div style="font-weight:700;color:#e2e8f0;font-size:0.85rem;">Rogers et al. (2010)</div>
     <div style="color:#64748b;font-style:italic;font-size:0.78rem;margin:2px 0;">NEJM</div>
-    <div style="color:#94a3b8;font-size:0.78rem;">RCT · n=134 · KCCQ HM-I vs HM-II</div>
-  </div>
-  <div style="background:#1e293b;border-radius:10px;padding:12px 14px;border:1px solid #334155;border-left:4px solid #f59e0b;">
-    <div style="font-weight:700;color:#e2e8f0;font-size:0.85rem;">Slaughter et al. (2009)</div>
-    <div style="color:#64748b;font-style:italic;font-size:0.78rem;margin:2px 0;">NEJM (MOMENTUM)</div>
-    <div style="color:#94a3b8;font-size:0.78rem;">RCT · n=134 · KCCQ +20 pts (HeartMate II)</div>
-  </div>
-  <div style="background:#1e293b;border-radius:10px;padding:12px 14px;border:1px solid #334155;border-left:4px solid #f59e0b;">
-    <div style="font-weight:700;color:#e2e8f0;font-size:0.85rem;">Cowger et al. (2017)</div>
-    <div style="color:#64748b;font-style:italic;font-size:0.78rem;margin:2px 0;">Ann Thorac Surg.</div>
-    <div style="color:#94a3b8;font-size:0.78rem;">Registre INTERMACS · n=200 · Vie réelle</div>
-  </div>
-  <div style="background:#1e293b;border-radius:10px;padding:12px 14px;border:1px solid #334155;border-left:4px solid #f59e0b;">
-    <div style="font-weight:700;color:#e2e8f0;font-size:0.85rem;">Brouwers et al. (2011)</div>
-    <div style="color:#64748b;font-style:italic;font-size:0.78rem;margin:2px 0;">Eur J Heart Fail</div>
-    <div style="color:#94a3b8;font-size:0.78rem;">Registre INTERMACS Europe · n=80</div>
+    <div style="color:#94a3b8;font-size:0.78rem;">RCT REMATCH · n=134 · KCCQ +20 pts (Gen1 pulsatile)</div>
   </div>
 </div>
 
-<div style="color:#10b981;font-weight:600;font-size:0.85rem;margin-bottom:10px;">🟢 Population : Post-greffe (5 études)</div>
+<div style="color:#10b981;font-weight:600;font-size:0.85rem;margin-bottom:10px;">🟢 Population : Transplantation cardiaque (14 études)</div>
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:24px;">
   <div style="background:#1e293b;border-radius:10px;padding:12px 14px;border:1px solid #334155;border-left:4px solid #10b981;">
-    <div style="font-weight:700;color:#e2e8f0;font-size:0.85rem;">Kugler et al. (2010)</div>
+    <div style="font-weight:700;color:#e2e8f0;font-size:0.85rem;">Grov et al. (2024) — SCHEDULE</div>
     <div style="color:#64748b;font-style:italic;font-size:0.78rem;margin:2px 0;">J Heart Lung Transplant</div>
-    <div style="color:#94a3b8;font-size:0.78rem;">Cohorte · n=174 · SF-36 PCS 43.2 ± 10.8</div>
+    <div style="color:#94a3b8;font-size:0.78rem;">Prospectif 11 ans · SF-36 PCS 32.5→44 · n=203</div>
   </div>
   <div style="background:#1e293b;border-radius:10px;padding:12px 14px;border:1px solid #334155;border-left:4px solid #10b981;">
-    <div style="font-weight:700;color:#e2e8f0;font-size:0.85rem;">Lam et al. (2009)</div>
-    <div style="color:#64748b;font-style:italic;font-size:0.78rem;margin:2px 0;">Circulation</div>
-    <div style="color:#94a3b8;font-size:0.78rem;">Registre · n=124 · KCCQ 67.4 ± 16.8</div>
+    <div style="font-weight:700;color:#e2e8f0;font-size:0.85rem;">Evangelista et al. (2022)</div>
+    <div style="color:#64748b;font-style:italic;font-size:0.78rem;margin:2px 0;">J Heart Lung Transplant</div>
+    <div style="color:#94a3b8;font-size:0.78rem;">Prospectif 15–19 ans post-HTx · SF-36 · n=304</div>
   </div>
   <div style="background:#1e293b;border-radius:10px;padding:12px 14px;border:1px solid #334155;border-left:4px solid #10b981;">
     <div style="font-weight:700;color:#e2e8f0;font-size:0.85rem;">Dew et al. (2005)</div>
     <div style="color:#64748b;font-style:italic;font-size:0.78rem;margin:2px 0;">Psychosom Med.</div>
-    <div style="color:#94a3b8;font-size:0.78rem;">Cohorte · n=174 · SF-36 MCS 51.2 ± 11.3</div>
+    <div style="color:#94a3b8;font-size:0.78rem;">Cohorte · n=174 · SF-36 MCS 51.2 ± 11.3 post-HTx</div>
   </div>
   <div style="background:#1e293b;border-radius:10px;padding:12px 14px;border:1px solid #334155;border-left:4px solid #10b981;">
-    <div style="font-weight:700;color:#e2e8f0;font-size:0.85rem;">Evangelista et al. (2014)</div>
-    <div style="color:#64748b;font-style:italic;font-size:0.78rem;margin:2px 0;">J Heart Lung Transplant</div>
-    <div style="color:#94a3b8;font-size:0.78rem;">Observationnelle · n=98 · EQ-5D 0.78 ± 0.14</div>
-  </div>
-  <div style="background:#1e293b;border-radius:10px;padding:12px 14px;border:1px solid #334155;border-left:4px solid #10b981;">
-    <div style="font-weight:700;color:#e2e8f0;font-size:0.85rem;">Flattery et al. (2006)</div>
-    <div style="color:#64748b;font-style:italic;font-size:0.78rem;margin:2px 0;">Prog Cardiovasc Nurs.</div>
-    <div style="color:#94a3b8;font-size:0.78rem;">Observationnelle · n=78 · Mn.LHFQ 22.3 ± 15.6</div>
+    <div style="font-weight:700;color:#e2e8f0;font-size:0.85rem;">QUALIFIER (2024)</div>
+    <div style="color:#64748b;font-style:italic;font-size:0.78rem;margin:2px 0;">Circ Heart Fail</div>
+    <div style="color:#94a3b8;font-size:0.78rem;">Prospectif · KCCQ + SF-36 · analyse MCID · HF avancée</div>
   </div>
 </div>
 
@@ -2458,13 +2606,26 @@ elif st.session_state.page == "references":
   </div>
 </div>
 
-<div style="background:#1e293b;border-radius:12px;padding:18px 20px;border:1px solid #334155;border-left:4px solid #3b82f6;">
-  <div style="font-size:0.9rem;font-weight:700;color:#e2e8f0;margin-bottom:8px;">Citation de la méta-analyse</div>
+<div style="background:#1e293b;border-radius:12px;padding:18px 20px;border:1px solid #334155;border-left:4px solid #3b82f6;margin-bottom:14px;">
+  <div style="font-size:0.9rem;font-weight:700;color:#e2e8f0;margin-bottom:8px;">Citation — Méta-analyse V2 (2004–2026)</div>
   <p style="font-style:italic;color:#94a3b8;font-size:0.84rem;margin:0 0 8px 0;">
-    TALL ML. Évaluation de la qualité de vie chez le patient cardiaque (liste d'attente, LVAD, post-greffe) :
-    méta-analyse de 15 études, 600 patients. Journée Scientifique sur la Qualité de Vie en Transplantation Cardiaque.
-    Hôpital Léon Bérard, Hyères, 19 juin 2026.
+    TALL ML. Health-Related Quality of Life Across the Advanced Heart Failure and Cardiac Transplantation Pathway:
+    A Systematic Review and Meta-Analysis with Instrument-Separated Pooling and Composite MCID Algorithm (2004–2026).
+    MedFlow AI Research — Montpellier, France. 2026. <em>Soumis à JACC: Heart Failure.</em>
   </p>
-  <p style="color:#475569;font-size:0.76rem;margin:0;">En collaboration avec Dr. Laurent Poirette (Cardiologie, Hôpital Léon Bérard) · MedFlow AI Research © 2026</p>
+  <p style="color:#475569;font-size:0.76rem;margin:0;">54 études · N=68 421 patients · PRISMA 2020 · DerSimonian-Laird · Score C MCID composite · MedFlow AI Research © 2026</p>
+</div>
+
+<div style="background:rgba(99,102,241,0.08);border-radius:12px;padding:16px 20px;border:1px solid rgba(99,102,241,0.25);">
+  <div style="font-size:0.82rem;font-weight:700;color:#a5b4fc;margin-bottom:6px;">
+    ⚠ Note méthodologique — Score C MCID composite (V2)
+  </div>
+  <p style="color:#94a3b8;font-size:0.78rem;margin:0;line-height:1.6;">
+    L'algorithme Score C (C = Σᵢ [wᵢ × I(Δsᵢ ≥ MCIDᵢ)] / Σᵢ wᵢ) pondère 5 instruments selon leur sensibilité
+    spécifique en insuffisance cardiaque avancée (KCCQ 40%, SF-36 PCS 25%, SF-36 MCS 15%, EQ-5D 15%, Minnesota 5%).
+    Les seuils MCID sont issus de la littérature validée (Green 2000, Ware 1995, Walters 2005, Rector 1992).
+    Cet outil constitue, à notre connaissance, la première implémentation interactive en ligne de ce framework
+    pour le parcours liste d'attente → LVAD → transplantation cardiaque.
+  </p>
 </div>
 """, unsafe_allow_html=True)
