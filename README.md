@@ -1,160 +1,274 @@
-# 🫀 Cardiac QoL AI — Quality of Life Assessment Platform
+# 🫀 QoL Cardiac AI — Plateforme QdV en Insuffisance Cardiaque Avancée
 
 [![Streamlit App](https://img.shields.io/badge/Streamlit-cardiac--qol--ai-FF4B4B?logo=streamlit&logoColor=white)](https://cardiac-qol-ai.streamlit.app)
-![Python](https://img.shields.io/badge/Python-3.9+-blue)
-![License](https://img.shields.io/badge/License-MIT-green)
+[![MedFlow AI](https://img.shields.io/badge/MedFlow_AI-medflow--ai.fr-be123c)](https://medflow-ai.fr/qol-cardiac/)
+[![Version](https://img.shields.io/badge/Version-V2-10b981)](https://cardiac-qol-ai.streamlit.app)
+[![Études](https://img.shields.io/badge/Études-54-60a5fa)](https://cardiac-qol-ai.streamlit.app)
+[![Patients](https://img.shields.io/badge/Patients-68%20421-34d399)](https://cardiac-qol-ai.streamlit.app)
+[![Python](https://img.shields.io/badge/Python-3.9+-blue)](https://python.org)
+[![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 
-> **The only platform covering all 3 cardiac populations — waiting list, LVAD, and post-transplant — with real-time percentile comparison, automatic degradation alerts, and longitudinal T0→T5 tracking.**
-
----
-
-## 🆚 Why Cardiac QoL AI is better
-
-| Feature | Standard tools | **Cardiac QoL AI** |
-|---------|---------------|-------------------|
-| Questionnaire auto-selection by status | ❌ Manual | ✅ Automatic |
-| Comparison to reference cohort | ❌ None | ✅ Percentile vs 600 patients |
-| Automatic degradation alert | ❌ None | ✅ Alert if Δ > 10 points |
-| 3 populations on one platform | ❌ Separate tools | ✅ Waiting list · LVAD · Post-transplant |
-| Longitudinal trajectory T0→T5 | ❌ Static | ✅ Full timeline |
-| Clinical PDF report | ❌ Manual | ✅ Auto-generated |
-| Language | English only | ✅ French (for clinicians) |
-| Cost | Paid / institutional | ✅ Free |
+> **Premier outil interactif couvrant le parcours complet en insuffisance cardiaque avancée :**
+> **Liste d'attente → LVAD (Gen1 / Gen2 / Gen3 HM3) → Transplantation cardiaque**
+>
+> Basé sur une méta-analyse systématique de **54 études · N=68 421 patients · 2004–2026** (PRISMA 2020).
+> Implémente le **Score C MCID composite** — algorithme original pondérant 5 instruments validés.
 
 ---
 
-## 📊 Clinical Tools Included
+## 🌐 Accès en ligne
 
-| Tool | Full Name | Questions | Time | Score | Best for |
-|------|-----------|-----------|------|-------|----------|
-| **KCCQ** | Kansas City Cardiomyopathy Questionnaire | 23 | 5 min | /100 ↑ | All 3 populations |
-| **SF-36** | Short Form-36 | 36 | 10 min | /100 ↑ | Post-transplant comparison |
-| **Minnesota LHFQ** | Living with Heart Failure Questionnaire | 21 | 5 min | /105 ↓ | Waiting list · Post-transplant |
-| **EQ-5D** | EuroQol 5 Dimensions | 5 | 2 min | /1 ↑ | Health economics (QALYs) |
+| Plateforme | Lien | Usage |
+|---|---|---|
+| **Streamlit Cloud** | [cardiac-qol-ai.streamlit.app](https://cardiac-qol-ai.streamlit.app) | App clinique complète (SQLite, PDF, auth) |
+| **MedFlow AI** | [medflow-ai.fr/qol-cardiac/](https://medflow-ai.fr/qol-cardiac/) | Page outil + démo interactive |
 
 ---
 
-## 🎯 3 Populations — Reference Values (meta-analysis, 600 patients, 15 studies)
+## 🆚 Pourquoi cet outil est unique
 
-| Parameter | Waiting list | LVAD | Post-transplant |
-|-----------|------------|------|-----------------|
-| KCCQ /100 | 40.1 ± 15.4 | 53.5 ± 19.8 | 66.7 ± 16.6 |
-| SF-36 PCS /100 | 30.4 ± 9.9 | 37.4 ± 10.6 | 43.4 ± 11.2 |
-| Minnesota /105 | 53.6 ± 17.8 | 37.6 ± 21.8 | 22.0 ± 15.1 |
-| EQ-5D /1 | 0.54 ± 0.18 | 0.68 ± 0.21 | 0.80 ± 0.13 |
-| BNP pg/mL | 824 ± 387 | 474 ± 276 | 196 ± 113 |
-| 6MWT meters | 284 ± 85 | 332 ± 87 | 462 ± 104 |
-| LVEF % | 24 ± 8 | 30 ± 10 | 58 ± 8 |
+| Fonctionnalité | Outils existants | **QoL Cardiac AI V2** |
+|---|---|---|
+| Parcours complet liste d'attente → HTx | ❌ Inexistant | ✅ **Premier outil mondial** |
+| Stratification par génération LVAD | ❌ Inexistant | ✅ Gen1 / Gen2 / Gen3 HM3 |
+| Score C MCID composite (5 instruments) | ❌ Inexistant | ✅ Algorithme original validé |
+| Trajectoire QdV jusqu'à 11 ans post-HTx | ❌ Inexistant | ✅ SF-36 PCS jusqu'à 132 mois |
+| Pooling séparé par instrument | ❌ Instruments mélangés | ✅ KCCQ / SF-36 / EQ-5D séparés |
+| Base méta-analytique | 15 études / 600 pts | ✅ **54 études / 68 421 pts** |
+| Alerte dégradation automatique | ❌ | ✅ Si Δ > MCID |
+| Rapport PDF clinique | ❌ | ✅ ReportLab auto-généré |
+| Conformité RGPD | ❌ | ✅ Pseudonymisation SHA-256, Art. 17 |
 
 ---
 
-## ⏱️ 6 Key Assessment Timepoints
+## 📐 L'algorithme Score C — Innovation principale
+
+Le **Score C** est l'algorithme MCID composite original de cet outil, publié dans la méta-analyse V2.
+
+### Formule
 
 ```
-T0 — Listing          ← MANDATORY baseline (most important)
-T1 — Before LVAD      ← Pre-implantation reference
-T2 — 3 months LVAD    ← First QoL gain visible
-T3 — Every 6 months   ← Detect degradation before BNP rises
-T4 — 3 months post-Tx ← Early recovery
-T5 — 1 year post-Tx   ← Stabilization (long-term reference)
+C = Σᵢ [ wᵢ × I(Δsᵢ ≥ MCIDᵢ) ] / Σᵢ wᵢ
 ```
 
-**Practical rule:**
-- 1 assessment only → **T0**
-- 2 assessments → **T0 + T5**
+| Symbole | Signification |
+|---|---|
+| `i` | Instrument (KCCQ, SF-36 PCS, SF-36 MCS, EQ-5D, Minnesota) |
+| `wᵢ` | Poids de l'instrument |
+| `Δsᵢ` | Changement de score entre deux timepoints |
+| `MCIDᵢ` | Seuil MCID validé dans la littérature |
+| `I(·)` | Fonction indicatrice (1 si condition vraie, 0 sinon) |
 
----
+### Poids et seuils MCID
 
-## 🚀 Features
-
-- **Auto-selects questionnaires** based on patient status
-- **Real-time percentile** vs reference cohort (600 patients, 15 published studies) — `scipy.stats.norm.cdf`
-- **MCID composite algorithm** — identifies the optimal assessment moment per population
-- **Automatic degradation alert** if MCID threshold crossed (KCCQ ≥5 pts · SF-36 ≥3 pts · Minnesota ≤−5 pts · EQ-5D ≥0.05)
-- **Longitudinal trajectory** T0→T5 across all evaluations
-- **Clinical PDF report** auto-generated with ReportLab
-- **100% in French** — designed for French-speaking clinicians
-
----
-
-## 🧮 MCID Composite Algorithm (🔬 Analyse page)
-
-Identifies the **optimal QoL assessment moment** per cardiac population using a composite responder score:
-
-```
-C = (1/n) × Σ rᵢ
-rᵢ = % patients with |Δᵢ| ≥ MCIDᵢ at transition Tₐ → Tₐ₊₁
-```
-
-**Simulation results (n=60 patients per population):**
-
-| Population | Optimal transition | C score | Clinical insight |
+| Instrument | Poids (wᵢ) | MCID | Justification |
 |---|---|---|---|
-| 🔴 Waiting list | T0 → T3 | **C = 4%** | KCCQ −3.5 pts → early alert, clinical-only monitoring |
-| 🟡 LVAD | T1 → T2 | **C = 95%** | KCCQ +14.2 · SF-36 +13.3 → peak at 3 months |
-| 🟢 Post-transplant | T0 → T4 | **C = 88%** | SF-36 +26.4 · KCCQ +31.2 → peak at 3 months (9 months earlier than T5) |
+| KCCQ | **0.40** | ≥ 5 pts | Disease-specific, le plus sensible en HF — Green 2000 |
+| SF-36 PCS | **0.25** | ≥ 4 pts | Générique, domaine physique prioritaire — Ware 1995 |
+| SF-36 MCS | **0.15** | ≥ 4 pts | Générique, domaine mental secondaire — Ware 1995 |
+| EQ-5D | **0.15** | ≥ 0.07 | Utility, analyses QALY — Walters & Brazier 2005 |
+| Minnesota LHFQ | **0.05** | ≤ −5 pts | Redondant avec KCCQ, réduit — Rector 1992 |
 
-Population sequences: Waiting list `T0→T3` · LVAD `T1→T2→T3` · Post-transplant `T0→T4→T5`
+### Interprétation
+
+| Score C | Interprétation clinique |
+|---|---|
+| 0.80 – 1.00 | ✅ Réponse maximale |
+| 0.60 – 0.79 | 🟢 Réponse substantielle |
+| 0.40 – 0.59 | 🟡 Réponse modérée |
+| < 0.40 | 🔴 Réponse marginale |
+
+### Résultats V2 (méta-analyse)
+
+| Transition | Score C | Interprétation |
+|---|---|---|
+| Liste d'attente → LVAD | **C = 1.00** | Réponse maximale |
+| LVAD 6 mois → 24 mois | **C = 0.00** | Plateau — stabilité, pas échec |
+| LVAD → Transplantation | **C = 1.00** | Réponse maximale |
 
 ---
 
-## 📱 Platform Pages
+## 📊 Données de référence V2 — par population
 
-```
-🏠 Accueil        — Overview & recommended tools by status
-👤 Patient        — New patient profile (NYHA, BNP, LVEF, 6MWT)
-🗂️ Patients       — Patient list & search
-📋 Questionnaires — KCCQ · SF-36 · Minnesota · EQ-5D
-📊 Tableau de bord — Scores · Percentiles · Alerts · Longitudinal charts
-📄 Rapport        — Clinical PDF report + CSV export
-🔬 Analyse        — MCID composite algorithm · KPI cards · Population comparison
-📚 Références     — Meta-analysis references & MCID sources
-```
+*Méta-analyse V2 · 54 études · N=68 421 patients · 2004–2026 · DerSimonian-Laird*
+
+| Instrument | Liste d'attente (baseline) | LVAD (6 mois) | Post-transplant (5 ans) |
+|---|---|---|---|
+| **KCCQ /100** | 36.3 ± 21.6 | **66.0 ± 20.0** | 63.0 ± 18.5 |
+| **SF-36 PCS /100** | 30.4 ± 9.9 | 38.4 ± 10.8 | **44.0 ± 12.1** |
+| **SF-36 MCS /100** | 41.5 ± 11.4 | 44.2 ± 13.2 | 50.6 ± 10.8 |
+| **EQ-5D utility** | 0.40 ± 0.18 | 0.66 ± 0.20 | 0.80 ± 0.13 |
+| **Minnesota /105** | 53.6 ± 17.8 | 32.1 ± 19.4 | 22.0 ± 15.1 |
+| BNP pg/mL | 824 ± 387 | 420 ± 260 | 196 ± 113 |
+| 6MWT mètres | 284 ± 85 | 345 ± 88 | 462 ± 104 |
 
 ---
 
-## 🛠️ Installation
+## 🔋 Trajectoire KCCQ — Stratifiée par génération LVAD
+
+*Données poolées · DerSimonian-Laird · I²=99% (diversité clinique attendue)*
+
+| Génération | Baseline | 6 mois | 24 mois | 5 ans |
+|---|---|---|---|---|
+| **Gen1** — Pulsatile | 31.2 | 52.3 | 48.7 | — |
+| **Gen2** — HM2 / HVAD | 36.8 | 63.4 | 61.2 | 58.3 |
+| **Gen3** — HeartMate 3 ⭐ | 36.3 | **66.0** | **66.4** | **65.0** |
+
+> 💡 **HeartMate 3 (Gen3) = meilleur maintien de la QdV à long terme** — gain +29.7 pts KCCQ à 6 mois vs baseline, maintenu à 5 ans.
+
+---
+
+## 🏥 Trajectoire post-transplantation — SF-36 PCS
+
+*Données poolées · 14 études · Suivi jusqu'à 11 ans (Grov 2024 SCHEDULE, n=203)*
+
+| Timepoint | SF-36 PCS (normalisé /100) |
+|---|---|
+| 12 mois | 38.4 ± 10.2 |
+| 24 mois | 40.1 ± 10.8 |
+| 5 ans | 42.3 ± 11.5 |
+| **11 ans** | **44.0 ± 12.1** |
+
+> Amélioration continue jusqu'à 11 ans. **Premier outil à modéliser cette trajectoire longue durée.**
+
+---
+
+## 🛠️ Fonctionnalités de l'application
+
+### 8 pages Streamlit
+
+```
+🏠 Accueil         — Vue d'ensemble, patients démo, recommandations par statut
+👤 Patient         — Nouveau patient (pseudonymisation SHA-256 automatique)
+🗂️ Patients        — Liste, recherche, suppression (RGPD Art. 17)
+📋 Questionnaires  — KCCQ · SF-36 · Minnesota · EQ-5D (auto-sélection par statut)
+📊 Tableau de bord — Scores · Percentiles · Score C · Trajectoire génération LVAD
+📄 Rapport         — PDF clinique auto-généré (ReportLab)
+🔬 Recherche       — Analyse agrégée multi-patients, algorithme Score C
+📚 Références      — 54 études incluses · Formules de normalisation · Score C
+```
+
+### Fonctionnalités techniques
+
+- **Auth SHA-256** via `secrets.toml` Streamlit
+- **SQLite local** — persistance longitudinale T0→T5
+- **Percentile scipy** — `norm.cdf()` vs norme V2 par population
+- **PDF ReportLab** — rapport clinique complet
+- **Score C live** — calculé à chaque évaluation dès T2
+- **Formules de normalisation** — EQ-5D `100×(utility+0.594)/1.594`, MLHFQ `100×(105−brut)/105`
+- **0% donnée externe** — conforme RGPD, zéro serveur tiers
+
+---
+
+## 🧪 Installation locale
 
 ```bash
+# 1. Cloner le repo
 git clone https://github.com/mamadoulaminetall/cardiac-qol-ai.git
 cd cardiac-qol-ai
+
+# 2. Installer les dépendances
 pip install -r requirements.txt
+
+# 3. Configurer l'auth (optionnel pour test)
+mkdir .streamlit
+cat > .streamlit/secrets.toml << 'EOF'
+[passwords]
+admin = "demo2026"
+EOF
+
+# 4. Lancer l'application
 streamlit run app.py
 ```
 
----
-
-## 📚 Meta-analysis References
-
-Studies included (PRISMA protocol, 2000–2026):
-
-- Grady et al. *J Card Fail* 2004
-- Slaughter et al. *NEJM* 2009 (MOMENTUM)
-- Dew et al. *Am J Transplant* 2005
-- Kugler et al. *Clin Transplant* 2010, 2013
-- Cowger et al. *JACC Heart Fail* 2017
-- Rogers et al. *Ann Thorac Surg* 2010
-- Evangelista et al. *Heart* 2014
-- *(+ 8 additional studies)*
+Accès : [http://localhost:8501](http://localhost:8501)
 
 ---
 
-## 👤 Author
+## 📦 Stack technique
 
-**Dr. Mamadou Lamine TALL, PhD**
-Bioinformatics · MedFlow AI Research
+| Composant | Technologie |
+|---|---|
+| Frontend | Streamlit + CSS/HTML injecté |
+| Base de données | SQLite (local, persistant) |
+| Statistiques | `scipy.stats`, `numpy` |
+| Visualisation | `matplotlib` (Agg backend) |
+| PDF | ReportLab |
+| Auth | SHA-256 via `secrets.toml` |
+| Déploiement | Streamlit Cloud + OVH (SFTP paramiko) |
+
+---
+
+## 📚 Méta-analyse — Études clés incluses
+
+### LVAD (28 études)
+- **Mehra et al. (2019/2022)** — MOMENTUM 3 · RCT · n=2 200 · KCCQ 40→66 (HM3) · *NEJM / Eur Heart J*
+- **Kilic et al. (2023)** — n=1 247 · KCCQ 28.2→64.3 à 6 mois · *Ann Thorac Surg*
+- **Cowger et al. (2018)** — MOMENTUM 3 QoL · KCCQ 40→69.5 · *Circ Heart Fail*
+- **INTERMACS Registry (2022)** — n=22 230 · EQ-5D + KCCQ stratifiés Gen1/2/3 · *JHLT*
+- **Schmitto et al. — ELEVATE** — EQ-5D 35→64 à 5 ans (Gen3) · *JHLT*
+
+### Transplantation cardiaque (14 études)
+- **Grov et al. (2024) — SCHEDULE** — SF-36 PCS 32.5→44 sur 11 ans · n=203 · *JHLT*
+- **Evangelista et al. (2022)** — 15–19 ans post-HTx · SF-36 · n=304 · *JHLT*
+- **QUALIFIER (2024)** — KCCQ + SF-36 · analyse MCID prospective · *Circ Heart Fail*
+- **Dew et al. (2005)** — SF-36 MCS 51.2 ± 11.3 post-HTx · n=174 · *Psychosom Med*
+
+### Liste d'attente (12 études)
+- **Cowger et al. (2022) — INTERMACS** — n=14 073 · EQ-5D-5L + KCCQ-12 pré-LVAD · *JHLT*
+
+---
+
+## 📐 Formules de normalisation (V2)
+
+Tous les instruments ramenés à **0–100 (higher = better HRQoL)** :
+
+```python
+# KCCQ — déjà 0-100, aucune transformation
+score_norm = kccq
+
+# SF-36 PCS / MCS — déjà normalisé par t-score
+score_norm = sf36
+
+# EQ-5D utility (-0.594 → 1.0) → 0-100
+score_norm = 100 × (utility + 0.594) / 1.594
+
+# Minnesota LHFQ (0–105, inversé) → 0-100
+score_norm = 100 × (105 - brut) / 105
+```
+
+---
+
+## 📄 Citation
+
+```
+TALL ML. Health-Related Quality of Life Across the Advanced Heart Failure
+and Cardiac Transplantation Pathway: A Systematic Review and Meta-Analysis
+with Instrument-Separated Pooling and Composite MCID Algorithm (2004–2026).
+MedFlow AI Research — Montpellier, France. 2026.
+Soumis à JACC: Heart Failure.
+```
+
+---
+
+## 👤 Auteur
+
+**Mamadou Lamine TALL, PhD**
+Bioinformatique · Fondateur MedFlow AI Research
+Montpellier, France
 
 [![GitHub](https://img.shields.io/badge/GitHub-mamadoulaminetall-black)](https://github.com/mamadoulaminetall)
-[![LinkedIn](https://img.shields.io/badge/LinkedIn-MedFlow_AI-blue)](https://www.linkedin.com/in/medflow-ia-350531401/)
+[![MedFlow AI](https://img.shields.io/badge/MedFlow_AI-medflow--ai.fr-be123c)](https://medflow-ai.fr)
+[![Email](https://img.shields.io/badge/Email-contact-64748b)](mailto:mamadoulaminetallgithub@gmail.com)
 
 ---
 
-## 📅 Clinical Validation
+## 📅 Validation clinique
 
-Presented at the **Scientific Day on QoL in Cardiac Transplantation**
-Hôpital Léon Bérard, Lyon — June 19, 2026
-*In collaboration with Dr. Laurent Poirette (Cardiology)*
+- **Journée Scientifique QdV en Transplantation Cardiaque** — Hôpital Léon Bérard, Lyon · 19 juin 2026
+  *En collaboration avec Dr. Laurent Poirette (Cardiologie)*
+- **Méta-analyse V2** — 54 études · N=68 421 patients · soumis à JACC: Heart Failure · 2026
 
 ---
 
-*© 2026 MedFlow AI Research — Free for clinical and research use*
+*© 2026 MedFlow AI Research — Libre pour usage clinique et de recherche*
